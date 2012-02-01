@@ -36,11 +36,12 @@ program hmmpt
   USE IOTOOLS
   implicit none
   integer    :: i,Lk
-  real(8)    :: x(1)
+  real(8)    :: x(1),z
   logical    :: check,converged
   complex(8) :: zeta
-  real(8),allocatable    :: wt(:),epsik(:)
+  real(8),allocatable    :: wt(:),epsik(:),wm(:)
   complex(8),allocatable :: sold(:)
+  type(matsubara_gf)     :: fgm
 
   call read_input("inputIPT.in")
   allocate(fg(L),sigma(L),fg0(L),gamma(L))
@@ -80,11 +81,27 @@ program hmmpt
      sigma=weigth*sigma + (1.d0-weigth)*sold
      sold=sigma
      converged=check_convergence(sigma,eps_error,nsuccess,nloop)
-     call splot("DOS.ipt",wr,-aimag(fg)/pi,append=printf)
-     call splot("G_realw.ipt",wr,fg,append=printf)
-     call splot("G0_realw.ipt",wr,fg0,append=printf)
-     call splot("Sigma_realw.ipt",wr,sigma,append=printf)
+     call splot("nVSiloop.ipt",iloop,n,append=TT)
   enddo
+  call close_file("nVSiloop.ipt")
+  call splot("DOS.ipt",wr,-aimag(fg)/pi,append=printf)
+  call splot("G_realw.ipt",wr,fg,append=printf)
+  call splot("G0_realw.ipt",wr,fg0,append=printf)
+  call splot("Sigma_realw.ipt",wr,sigma,append=printf)
+
+
+  call allocate_gf(fgm,8192)
+  allocate(wm(8192))
+  wm = pi/beta*real(2*arange(1,8192)-1,8)
+
+  call get_matsubara_gf_from_dos(wr,fg,fgm%iw,beta)
+  call splot("G_iw.ipt",wm,fgm%iw,append=printf)
+  fgm=zero
+  call get_matsubara_gf_from_dos(wr,sigma,fgm%iw,beta)
+  call splot("Sigma_iw.ipt",wm,fgm%iw,append=printf)
+  z=1.d0 - dimag(fgm%iw(1))/wm(1);z=1.d0/z
+  call splot("n.z.u.xmu.ipt",n,z,u,xmu,append=printf)
+
 
 end program hmmpt
 

@@ -1,7 +1,6 @@
 HERE  =`pwd`
-EXE=hmmpt_2dsquare
-#ahmipt_zeroT_2dsquare
-DIR=./drivers
+EXE=hmmpt_matsubara_2dsquare
+DIR=./drivers/hm/2dsquare
 DIREXE= $(HOME)/.bin
 
 #########################################################################
@@ -10,14 +9,15 @@ include $(HOME)/lib/libdmft.mk
 #########################################################################
 
 
-all: 	
+all: 	version
 	@echo " ........... compile: optimized ........... "
+	@echo $(VER)
 	$(FC) $(STD) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(MODS) $(LIBS) 
 	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)
 
-opt: 	
+opt: 	version
 	@echo " ........... compile: optimized ........... "
 	$(FC) $(OPT) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(MODS) $(LIBS)
 	@echo " ...................... done .............................. "
@@ -25,7 +25,7 @@ opt:
 	@echo "created" $(DIREXE)/$(EXE)
 
 
-debug: 	
+debug: 	version
 	@echo " ........... compile : debug   ........... "
 	$(FC) $(DEB) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT_DEB) $(MODS_DEB) $(LIBS_DEB) 
 	@echo " ...................... done .............................. "
@@ -35,7 +35,12 @@ debug:
 
 clean: 
 	@echo 'removing *.mod *.o *~'
-	@rm -f *.mod
-	@rm -f *.o
-	@rm -f *~
+	@rm -vf *.mod
+	@rm -vf *.o
+	@rm -vf *~
+	@rm -vf revision.inc
 	@rm -vf $(DIREXE)/$(EXE)
+
+#########################################################################
+include $(HOME)/lib/version.mk
+#########################################################################

@@ -19,22 +19,18 @@ program hmmpt_2dsquare_matsubara
   complex(8),allocatable          :: det(:),sold(:,:)
   !
   real(8),allocatable             :: wm(:),tau(:),wt(:),epsik(:)
-
+  include "revision.inc"
+  call version(revision)
   call read_input("inputIPT.in")
-  ! lm  = int(real(L,8)*beta/pi2)
-  ! esp = nint(log(real(lm,8))/log(2.d0))
-  ! lm  = 2**esp
-  ! L=max(lm,L)
-  ! write(*,"(A,I9,A)")"Using ",L," frequencies"
 
   allocate(wm(L),tau(0:L))
   wm     = pi/beta*real(2*arange(1,L)-1,8)
   tau(0:)= linspace(0.d0,beta,L+1,mesh=dtau)
 
   !build square lattice structure:
-  Lk   = square_lattice_dimension(Nx)
+  Lk   = square_lattice_dimension(Nx,Nx)
   allocate(wt(Lk),epsik(Lk))
-  wt   = square_lattice_structure(Lk,Nx)
+  wt   = square_lattice_structure(Lk,Nx,Nx)
   epsik= square_lattice_dispersion_array(Lk,ts)
 
   !allocate working arrays
@@ -83,15 +79,15 @@ program hmmpt_2dsquare_matsubara
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=nloop)
      call splot("nVSiloop.ipt",iloop,n,append=TT)
      call splot("deltaVSiloop.ipt",iloop,delta,append=TT)
+     call splot("Sigma_iw.ipt",wm,sigma(1,:),append=printf)
+     call splot("Self_iw.ipt",wm,sigma(2,:),append=printf)
+     call splot("G_iw.ipt",wm,fg(1,:),append=printf)
+     call splot("F_iw.ipt",wm,fg(2,:),append=printf)
   enddo
   call close_file("nVSiloop.ipt")
   call close_file("deltaVSiloop.ipt")
-  call splot("Sigma_iw.ipt",wm,sigma(1,:),append=printf)
-  call splot("Self_iw.ipt",wm,sigma(2,:),append=printf)
-  call splot("G_iw.ipt",wm,fg(1,:),append=printf)
-  call splot("F_iw.ipt",wm,fg(2,:),append=printf)
   call splot("calG_iw.ipt",wm,calG(1,:),append=printf)
   call splot("calF_iw.ipt",wm,calG(2,:),append=printf)
-  call splot("n.delta.ipt",n,delta,append=printf)
+  call splot("n.delta.other.ipt",n,delta,u,beta,xmu,dble(iloop),append=printf)
 
 end program hmmpt_2dsquare_matsubara

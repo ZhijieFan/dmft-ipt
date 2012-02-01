@@ -1,21 +1,18 @@
 !########################################################
-!     Program  : HMMPT
-!     TYPE     : Main program
 !     PURPOSE  : Solve the Hubbard model using DMFT away from half-filling
 ! with modified itertive perturbation scheme (MPT)  
 !     AUTHORS  : Adriano Amaricci
 !########################################################
-module COMMON
+MODULE COMMON
   USE GREENFUNX
   USE BROYDEN
   implicit none
-  !Put here vars in common with the BROYDN function
-  real(8) :: xmu0,n,n0
-  type(matsubara_gf) :: sigma,fg,fg0,gamma
+  real(8)                :: xmu0,n,n0
+  type(matsubara_gf)     :: sigma,fg,fg0,gamma
   complex(8),allocatable :: sold(:)
-end module COMMON
+END MODULE COMMON
 
-function funcv(x)
+FUNCTION FUNCV(x)
   USE COMMON
   USE DMFT_IPT
   implicit none
@@ -26,20 +23,24 @@ function funcv(x)
   !Hartree corrected WF is: \tilde{\calG0}^-1 = \calG0^-1 +xmu -xmu0 -U*n
   fg0%iw = one/(one/gamma%iw +xmu-xmu0-u*(n-0.5d0))
   call fftgf_iw2tau(fg0%iw,fg0%tau,beta)
-  n0=-real(fg0%tau(L))
+  n0=-real(fg0%tau(L),8)
   funcv(1)=n-n0
   write(*,"(3(f13.9))")n,n0,xmu0
-end function funcv
+END FUNCTION FUNCV
 
 program hmmpt_matsubara
   USE DMFT_IPT
-  USE LATTICE
   USE COMMON
+  USE SQUARE_LATTICE
+  USE TOOLS
+  USE IOTOOLS
   implicit none
-  real(8)    :: x(1)
+  integer    :: i,Lk
+  real(8)    :: x(1),z
   logical    :: check
   complex(8) :: zeta
   logical :: converged
+  real(8),allocatable,dimension(:) :: wt,epsik,wm
 
   call read_input("inputIPT.in")
   call allocate_gf(fg,L)
@@ -48,9 +49,15 @@ program hmmpt_matsubara
   call allocate_gf(gamma,L)
   allocate(sold(size(sigma%iw)))
 
-  call  build_2DSquareLattice(Nx,Nk=Lk)
-  allocate(epsik(Lk))
-  call get_epsik(epsik,ts)
+  !Build frequency array
+  allocate(wm(L))
+  wm = pi/beta*real(2*arange(1,L)-1,8)
+
+  !build square lattice structure:
+  Lk   = square_lattice_dimension(Nx)
+  allocate(wt(Lk),epsik(Lk))
+  wt   = square_lattice_structure(Lk,Nx)
+  epsik= square_lattice_dispersion_array(Lk,ts)
 
   n=0.5d0 ; sigma%iw= U*(n-0.5d0) ; xmu0=xmu 
   iloop=0 ; converged=.false.
@@ -59,6 +66,7 @@ program hmmpt_matsubara
      write(*,"(A,i5)")"DMFT-loop",iloop
      do i=1,L
         zeta    = xi*wm(i) + xmu - sigma%iw(i)
+        !fg%iw(i) = gfbethe(wm(i),zeta,D)
         fg%iw(i) = sum_overk_zeta(zeta,epsik,wt)
      enddo
      call fftgf_iw2tau(fg%iw,fg%tau,beta)
@@ -74,7 +82,16 @@ program hmmpt_matsubara
      sigma%iw = solve_mpt_matsubara(fg0%iw,n,n0,xmu0)
      sigma%iw = weigth*sigma%iw + (1.d0-weigth)*sold ; sold=sigma%iw
      converged=check_convergence(sigma%iw,eps_error,Nsuccess,Nloop)
+     z=1.d0 - dimag(sigma%iw(1))/wm(1);z=1.d0/z
+     call splot("nVSiloop.ipt",iloop,n,append=TT)
+     call splot("zetaVSiloop.ipt",iloop,z,append=TT)
   enddo
+  call close_file("nVSiloop.ipt")
+  call close_file("zetaVSiloop.ipt")
+  call splot("G_iw.ipt",wm,fg%iw,append=printf)
+  call splot("G0_iw.ipt",wm,fg0%iw,append=printf)
+  call splot("Sigma_iw.ipt",wm,sigma%iw,append=printf)
+  call splot("n.z.u.xmu.ipt",n,z,u,xmu,append=printf)
 
 end program hmmpt_matsubara
 
