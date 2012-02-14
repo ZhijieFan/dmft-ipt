@@ -29,7 +29,7 @@ function funcv(x)
   write(*,"(3(f13.9))")n,n0,xmu0
 end function funcv
 
-program hmmpt
+program hmmpt_2dsquare
   USE DMFT_IPT
   USE COMMON
   USE SQUARE_LATTICE
@@ -42,6 +42,8 @@ program hmmpt
   real(8),allocatable    :: wt(:),epsik(:),wm(:)
   complex(8),allocatable :: sold(:)
   type(matsubara_gf)     :: fgm
+  include "revision.inc"
+  call version(revision)
 
   call read_input("inputIPT.in")
   allocate(fg(L),sigma(L),fg0(L),gamma(L))
@@ -90,9 +92,10 @@ program hmmpt
   call splot("Sigma_realw.ipt",wr,sigma,append=printf)
 
 
-  call allocate_gf(fgm,8192)
-  allocate(wm(8192))
-  wm = pi/beta*real(2*arange(1,8192)-1,8)
+  L=max(8192,8*L)
+  call allocate_gf(fgm,L)
+  allocate(wm(L))
+  wm = pi/beta*real(2*arange(1,L)-1,8)
 
   call get_matsubara_gf_from_dos(wr,fg,fgm%iw,beta)
   call splot("G_iw.ipt",wm,fgm%iw,append=printf)
@@ -103,7 +106,7 @@ program hmmpt
   call splot("n.z.u.xmu.ipt",n,z,u,xmu,append=printf)
 
 
-end program hmmpt
+end program hmmpt_2dsquare
 
 
 

@@ -62,8 +62,8 @@ program hmmpt_2dsquare_matsubara
 
      !calcola calG0^-1, calF0^-1 (WFs)
      det      =  abs(fg(1,:))**2 + fg(2,:)**2
-     fg0(1,:) =  conjg(fg(1,:))/det + sigma(1,:) - u*(n-0.5d0)
-     fg0(2,:) =  fg(2,:)/det       + sigma(2,:) +  delta
+     fg0(1,:) =  conjg(fg(1,:))/det + sigma(1,:) + u*(n-0.5d0)
+     fg0(2,:) =  fg(2,:)/det       + sigma(2,:)  +  delta
      det       =  abs(fg0(1,:))**2 + fg0(2,:)**2
      calG(1,:) =  conjg(fg0(1,:))/det
      calG(2,:) =  fg0(2,:)/det
@@ -79,13 +79,14 @@ program hmmpt_2dsquare_matsubara
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=nloop)
      call splot("nVSiloop.ipt",iloop,n,append=TT)
      call splot("deltaVSiloop.ipt",iloop,delta,append=TT)
-     call splot("Sigma_iw.ipt",wm,sigma(1,:),append=printf)
-     call splot("Self_iw.ipt",wm,sigma(2,:),append=printf)
-     call splot("G_iw.ipt",wm,fg(1,:),append=printf)
-     call splot("F_iw.ipt",wm,fg(2,:),append=printf)
+
   enddo
   call close_file("nVSiloop.ipt")
   call close_file("deltaVSiloop.ipt")
+  call splot("Sigma_iw.ipt",wm,sigma(1,:),append=printf)
+  call splot("Self_iw.ipt",wm,sigma(2,:),append=printf)
+  call splot("G_iw.ipt",wm,fg(1,:),append=printf)
+  call splot("F_iw.ipt",wm,fg(2,:),append=printf)
   call splot("calG_iw.ipt",wm,calG(1,:),append=printf)
   call splot("calF_iw.ipt",wm,calG(2,:),append=printf)
   call splot("n.delta.other.ipt",n,delta,u,beta,xmu,dble(iloop),append=printf)

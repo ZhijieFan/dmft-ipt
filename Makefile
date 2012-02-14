@@ -1,6 +1,6 @@
 HERE  =`pwd`
-EXE=hmmpt_matsubara_2dsquare
-DIR=./drivers/hm/2dsquare
+EXE=ahmmpt_matsubara
+DIR=./drivers/ahm
 DIREXE= $(HOME)/.bin
 
 #########################################################################
@@ -35,11 +35,7 @@ debug: 	version
 
 clean: 
 	@echo 'removing *.mod *.o *~'
-	@rm -vf *.mod
-	@rm -vf *.o
-	@rm -vf *~
-	@rm -vf revision.inc
-	@rm -vf $(DIREXE)/$(EXE)
+	@rm -vf *.mod *.o *~ revision.inc
 
 #########################################################################
 include $(HOME)/lib/version.mk
