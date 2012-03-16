@@ -1,25 +1,25 @@
 HERE  =`pwd`
-EXE=ahmmpt_matsubara
+EXE=ahmmpt_real
 DIR=./drivers/ahm
 DIREXE= $(HOME)/.bin
 
 #########################################################################
-include $(HOME)/lib/lib.mk
-include $(HOME)/lib/libdmft.mk
+include $(SFDIR)/etc/lib.mk
+include $(SFDIR)/etc/libdmft.mk
 #########################################################################
 
 
 all: 	version
 	@echo " ........... compile: optimized ........... "
 	@echo $(VER)
-	$(FC) $(STD) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(MODS) $(LIBS) 
+	$(FC) $(STD) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(SFMODS) $(SFLIBS) 
 	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)
 
 opt: 	version
 	@echo " ........... compile: optimized ........... "
-	$(FC) $(OPT) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(MODS) $(LIBS)
+	$(FC) $(OPT) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(SFMODS) $(SFLIBS)
 	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)
@@ -27,7 +27,7 @@ opt: 	version
 
 debug: 	version
 	@echo " ........... compile : debug   ........... "
-	$(FC) $(DEB) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT_DEB) $(MODS_DEB) $(LIBS_DEB) 
+	$(FC) $(DEB) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT_DEB) $(SFMODS_DEB) $(SFLIBS_DEB) 
 	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)
@@ -38,5 +38,5 @@ clean:
 	@rm -vf *.mod *.o *~ revision.inc
 
 #########################################################################
-include $(HOME)/lib/version.mk
+include $(SFDIR)/etc/version.mk
 #########################################################################

@@ -40,9 +40,17 @@ program hmmpt_matsubara
   logical    :: check
   complex(8) :: zeta
   logical :: converged
+
+  real(8) :: nread,nerror,ndelta
+  integer :: nindex=0
+
   real(8),allocatable,dimension(:) :: wt,epsik,wm
 
   call read_input("inputIPT.in")
+  call parse_cmd_variable(nread,"NREAD",default=0.d0)
+  call parse_cmd_variable(nerror,"NERROR",default=1.d-4)
+  call parse_cmd_variable(ndelta,"NDELTA",default=0.1d0)
+
   call allocate_gf(fg,L)
   call allocate_gf(fg0,L)
   call allocate_gf(sigma,L)
@@ -85,6 +93,7 @@ program hmmpt_matsubara
      z=1.d0 - dimag(sigma%iw(1))/wm(1);z=1.d0/z
      call splot("nVSiloop.ipt",iloop,n,append=TT)
      call splot("zetaVSiloop.ipt",iloop,z,append=TT)
+     if(nread/=0.d0)call search_mu(converged)
   enddo
   call close_file("nVSiloop.ipt")
   call close_file("zetaVSiloop.ipt")
@@ -92,6 +101,37 @@ program hmmpt_matsubara
   call splot("G0_iw.ipt",wm,fg0%iw,append=printf)
   call splot("Sigma_iw.ipt",wm,sigma%iw,append=printf)
   call splot("n.z.u.xmu.ipt",n,z,u,xmu,append=printf)
+
+contains
+
+  subroutine search_mu(convergence)
+    real(8)               :: naverage
+    logical,intent(inout) :: convergence
+    real(8)               :: ndelta1
+    integer               :: nindex1    
+    naverage=2.d0*n
+    nindex1=nindex
+    ndelta1=ndelta
+    if((naverage >= nread+nerror))then
+       nindex=-1
+    elseif(naverage <= nread-nerror)then
+       nindex=1
+    else
+       nindex=0
+    endif
+    if(nindex1+nindex==0)then !avoid loop forth and back
+       ndelta=ndelta1/2.d0 !decreasing the step
+    else
+       ndelta=ndelta1
+    endif
+    xmu=xmu+real(nindex,8)*ndelta
+    write(*,"(A,f15.12,A,f15.12,A,f15.12,A,f15.12)")" n=",naverage," /",nread,&
+         "| shift=",nindex*ndelta,"| xmu=",xmu
+    write(*,"(A,f15.12)")"dn=",abs(naverage-nread)
+    print*,""
+    if(abs(naverage-nread)>nerror)convergence=.false.
+    call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
+  end subroutine search_mu
 
 end program hmmpt_matsubara
 

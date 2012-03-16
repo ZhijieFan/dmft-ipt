@@ -39,6 +39,10 @@ program hmmpt_2dsquare
   real(8)    :: x(1),z
   logical    :: check,converged
   complex(8) :: zeta
+
+  real(8) :: nread,nerror,ndelta
+  integer :: nindex=0
+
   real(8),allocatable    :: wt(:),epsik(:),wm(:)
   complex(8),allocatable :: sold(:)
   type(matsubara_gf)     :: fgm
@@ -46,6 +50,10 @@ program hmmpt_2dsquare
   call version(revision)
 
   call read_input("inputIPT.in")
+  call parse_cmd_variable(nread,"NREAD",default=0.d0)
+  call parse_cmd_variable(nerror,"NERROR",default=1.d-4)
+  call parse_cmd_variable(ndelta,"NDELTA",default=0.1d0)
+
   allocate(fg(L),sigma(L),fg0(L),gamma(L))
   allocate(sold(L))
   allocate(wr(L))
@@ -84,6 +92,7 @@ program hmmpt_2dsquare
      sold=sigma
      converged=check_convergence(sigma,eps_error,nsuccess,nloop)
      call splot("nVSiloop.ipt",iloop,n,append=TT)
+     if(nread/=0.d0)call search_mu(converged)
   enddo
   call close_file("nVSiloop.ipt")
   call splot("DOS.ipt",wr,-aimag(fg)/pi,append=printf)
@@ -105,6 +114,36 @@ program hmmpt_2dsquare
   z=1.d0 - dimag(fgm%iw(1))/wm(1);z=1.d0/z
   call splot("n.z.u.xmu.ipt",n,z,u,xmu,append=printf)
 
+contains
+
+  subroutine search_mu(convergence)
+    real(8)               :: naverage
+    logical,intent(inout) :: convergence
+    real(8)               :: ndelta1
+    integer               :: nindex1    
+    naverage=2.d0*n
+    nindex1=nindex
+    ndelta1=ndelta
+    if((naverage >= nread+nerror))then
+       nindex=-1
+    elseif(naverage <= nread-nerror)then
+       nindex=1
+    else
+       nindex=0
+    endif
+    if(nindex1+nindex==0)then !avoid loop forth and back
+       ndelta=ndelta1/2.d0 !decreasing the step
+    else
+       ndelta=ndelta1
+    endif
+    xmu=xmu+real(nindex,8)*ndelta
+    write(*,"(A,f15.12,A,f15.12,A,f20.17,A,f15.12)")" n=",naverage," /",nread,&
+         "| shift=",nindex*ndelta,"| xmu=",xmu
+    write(*,"(A,f15.12)")"dn=",abs(naverage-nread)
+    print*,""
+    if(abs(naverage-nread)>nerror)convergence=.false.
+    call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
+  end subroutine search_mu
 
 end program hmmpt_2dsquare
 

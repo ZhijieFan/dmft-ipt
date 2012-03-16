@@ -27,18 +27,17 @@ program ahmmpt
 
   call read_input("inputIPT.in")
 
-
   print*,"we are actually using",L,"frequencies"
-  allocate(wr(L))
-  wr = linspace(-wmax,wmax,L,mesh=fmesh)
+  allocate(wr(-L:L))
+  wr = linspace(-wmax,wmax,2*L+1,mesh=fmesh)
   print*,"|omegamax|",wr(L)
 
-  allocate(fg(2,L),sigma(2,L))
-  allocate(wf0(2,L),calG(2,L))
-  allocate(sold(2,L),zeta(L))
+  allocate(fg(2,-L:L),sigma(2,-L:L))
+  allocate(wf0(2,-L:L),calG(2,-L:L))
+  allocate(sold(2,-L:L),zeta(-L:L))
 
-  D=2.d0*ts; Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
-  call bethe_lattice(wt,epsik,Lk,D)
+  Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
+  call bethe_lattice(wt,epsik,Lk,D=1.d0)
 
   call get_initial_sigma
 
@@ -49,13 +48,13 @@ program ahmmpt
 
      fg=zero
      zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
-     do i=1,L
+     do i=-L,L
         zeta1 = zeta(i)
-        zeta2 = conjg(zeta(L+1-i))
+        zeta2 = conjg(zeta(-i))
         do ik=1,Lk
-           det     = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
+           det     = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,-i))*sigma(2,i)              ! versione di BAUER
            fg(1,i) =fg(1,i) + wt(ik)*(zeta2-epsik(ik))/det
-           fg(2,i) =fg(2,i) - wt(ik)*conjg(sigma(2,L+1-i))/det
+           fg(2,i) =fg(2,i) - wt(ik)*conjg(sigma(2,-i))/det                                 ! versione di BAUER
         enddo
      enddo
 
@@ -65,16 +64,17 @@ program ahmmpt
 
      !Hartree corrected WF is: xmu=xmu0
      !\tilde{\calG0} = [G^-1 + Sigma - \Sigma_HFB]^-1
-     do i=1,L
-        det     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
-        wf0(1,i)= conjg(fg(1,L+1-i))/det  + sigma(1,i)   +  u*(n-0.5d0)
-        wf0(2,i)= fg(2,i)/det       + conjg(sigma(2,L+1-i))   + delta
+     do i=-L,L
+        det     = fg(1,i)*conjg(fg(1,-i)) + conjg(fg(2,-i))*fg(2,i)          !! versione di BAUER
+
+        wf0(1,i)= conjg(fg(1,-i))/det  + sigma(1,i)   +  u*(n-0.5d0) ! versione vecchia particle-hole doppio segno sbagliato [ora corretto]
+        wf0(2,i)= fg(2,i)/det          + conjg(sigma(2,-i))   + delta     !! versione di BAUER
      end do
 
-     do i=1,L
-        det      =  wf0(1,i)*conjg(wf0(1,L+1-i)) + conjg(wf0(2,L+1-i))*wf0(2,i)
-        calG(1,i)=  conjg(wf0(1,L+1-i))/det
-        calG(2,i)=  conjg(wf0(2,L+1-i))/det
+     do i=-L,L
+        det      =  wf0(1,i)*conjg(wf0(1,-i)) + conjg(wf0(2,-i))*wf0(2,i)   !! versione di BAUER
+        calG(1,i)=  conjg(wf0(1,-i))/det
+        calG(2,i)=  conjg(wf0(2,-i))/det     !! versione di BAUER
      end do
 
      n0    =  -sum(aimag(calG(1,:))*fermi(wr,beta))*fmesh/pi
@@ -131,32 +131,32 @@ program ahmmpt
 
 contains 
 
-  subroutine search_mu(convergence)
-    integer, save         ::nindex
-    integer               ::nindex1
-    real(8)               :: naverage,ndelta1
-    logical,intent(inout) :: convergence
-    naverage=n
-    nindex1=nindex
-    ndelta1=ndelta
-    if((naverage >= nread+nerror))then
-       nindex=-1
-    elseif(naverage <= nread-nerror)then
-       nindex=1
-    else
-       nindex=0
-    endif
-    if(nindex1+nindex==0)then !avoid loop forth and back
-       ndelta=real(ndelta1/2.d0,8) !decreasing the step
-       xmu=xmu+real(nindex,8)*ndelta
-    else
-       ndelta=ndelta1
-       xmu=xmu+real(nindex,8)*ndelta
-    endif
-    write(*,"(A,2f15.12,A,f15.12,A,I3,f15.12)")"mu,n=",xmu,naverage,"/",nread,"| ",nindex,ndelta
-    if(abs(naverage-nread)>nerror)convergence=.false.
-    call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
-  end subroutine search_mu
+  ! subroutine search_mu(convergence)
+  !   integer, save         ::nindex
+  !   integer               ::nindex1
+  !   real(8)               :: naverage,ndelta1
+  !   logical,intent(inout) :: convergence
+  !   naverage=n
+  !   nindex1=nindex
+  !   ndelta1=ndelta
+  !   if((naverage >= nread+nerror))then
+  !      nindex=-1
+  !   elseif(naverage <= nread-nerror)then
+  !      nindex=1
+  !   else
+  !      nindex=0
+  !   endif
+  !   if(nindex1+nindex==0)then !avoid loop forth and back
+  !      ndelta=real(ndelta1/2.d0,8) !decreasing the step
+  !      xmu=xmu+real(nindex,8)*ndelta
+  !   else
+  !      ndelta=ndelta1
+  !      xmu=xmu+real(nindex,8)*ndelta
+  !   endif
+  !   write(*,"(A,2f15.12,A,f15.12,A,I3,f15.12)")"mu,n=",xmu,naverage,"/",nread,"| ",nindex,ndelta
+  !   if(abs(naverage-nread)>nerror)convergence=.false.
+  !   call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
+  ! end subroutine search_mu
 
 
   subroutine get_initial_sigma()
