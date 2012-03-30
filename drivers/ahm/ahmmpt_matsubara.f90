@@ -8,10 +8,13 @@ program hmmpt_matsubara
   USE DMFT_IPT
   USE IOTOOLS
   implicit none
-  integer                         :: i,ik,esp,Lk
+  integer                         :: i,ik,esp,Lk,M
   logical                         :: converged,check1,check2,check
   complex(8)                      :: zeta,cdet
-  real(8)                         :: n,delta,n0,delta0
+  real(8)                         :: n,delta,n0,delta0,w
+  !tails
+  real(8),dimension(2) :: mues
+
   !
   complex(8),allocatable          :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:)
   real(8),allocatable             :: fgt(:,:),fg0t(:,:)
@@ -24,14 +27,16 @@ program hmmpt_matsubara
   call version(revision)
   call read_input("inputIPT.in")
 
-  allocate(wm(L),tau(0:L))
-  wm(:)  = pi/beta*real(2*arange(1,L)-1,8)
-  tau(0:)= linspace(0.d0,beta,L+1,mesh=dtau)
-  write(*,"(A,I9,A)")"Using ",L," frequencies"
+  M=4*L
+
+  allocate(wm(M),tau(0:M))
+  wm(:)  = pi/beta*real(2*arange(1,M)-1,8)
+  tau(0:)= linspace(0.d0,beta,M+1,mesh=dtau)
+  !write(*,"(A,I9,A)")"Using ",L," frequencies"
   !
-  allocate(fg(2,L),fgt(2,0:L))
-  allocate(fg0(2,L),fg0t(2,0:L))
-  allocate(sigma(2,L),calG(2,L))
+  allocate(fg(2,M),fgt(2,0:M))
+  allocate(fg0(2,L),calG(2,M),fg0t(2,0:M))
+  allocate(sigma(2,M))
   allocate(det(L),Sold(2,L))
   allocate(sconvergence(2*L))
 
@@ -53,33 +58,48 @@ program hmmpt_matsubara
         do ik=1,Lk
            cdet = abs(zeta-epsik(ik))**2 + (sigma(2,i))**2 
            fg(1,i)=fg(1,i) + wt(ik)*(conjg(zeta)-epsik(ik))/cdet
-
            fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet
         enddo
      enddo
-     call fftgf_iw2tau(fg(1,:),fgt(1,0:L),beta)
-     call fftgf_iw2tau(fg(2,:),fgt(2,0:L),beta,notail=.true.)
-     n=-fgt(1,L) ; delta= -u*fgt(2,L)
+
+     !Add tail to G_loc here:
+     mues(1)=-real(fg(1,L))*wm(L)**2
+     mues(2)=-real(fg(2,L))*wm(L)**2
+     do i=L+1,M
+        fg(1,i)=-(mues(1)+xi*wm(i))/(mues(1)**2 + wm(i)**2 + mues(2)**2)
+        fg(2,i)=-mues(2)/(mues(1)**2 + wm(i)**2 + mues(2)**2)
+     enddo
+     call fftgf_iw2tau(fg(1,:),fgt(1,0:),beta)
+     call fftgf_iw2tau(fg(2,:),fgt(2,0:),beta,notail=.true.)
+     n=-fgt(1,M) ; delta= -u*fgt(2,M)
+
 
      !calcola calG0^-1, calF0^-1 (WFs)
-     det      =  abs(fg(1,:))**2 + fg(2,:)**2
-     fg0(1,:) =  conjg(fg(1,:))/det + sigma(1,:) + u*(n-0.5d0)
-     fg0(2,:) =  fg(2,:)/det        + sigma(2,:) +  delta
+     det      =  abs(fg(1,1:L))**2 + fg(2,1:L)**2
+     fg0(1,:) =  conjg(fg(1,1:L))/det + sigma(1,1:L) + u*(n-0.5d0)
+     fg0(2,:) =  fg(2,1:L)/det        + sigma(2,1:L) +  delta
 
      det       =  abs(fg0(1,:))**2 + fg0(2,:)**2
-     calG(1,:) =  conjg(fg0(1,:))/det
-     calG(2,:) =  fg0(2,:)/det
+     calG(1,1:L) =  conjg(fg0(1,:))/det
+     calG(2,1:L) =  fg0(2,:)/det
 
+     !Add tail to G_loc here:
+     mues(1)=-real(calG(1,L))*wm(L)**2
+     mues(2)=-real(calG(2,L))*wm(L)**2
+     do i=L+1,M
+        calG(1,i)=-(mues(1)+xi*wm(i))/(mues(1)**2 + wm(i)**2 + mues(2)**2)
+        calG(2,i)=-mues(2)/(mues(1)**2 + wm(i)**2 + mues(2)**2)
+     enddo
      call fftgf_iw2tau(calG(1,:),fg0t(1,:),beta)
      call fftgf_iw2tau(calG(2,:),fg0t(2,:),beta,notail=.true.) !; fg0t(2,:)=-fg0t(2,:)
-     n0=-fg0t(1,L) ; delta0= -u*fg0t(2,L)
+     n0=-fg0t(1,M) ; delta0= -u*fg0t(2,M)
      write(*,"(4(f16.12))",advance="no")n,n0,delta,delta0
 
-     sigma     =  solve_mpt_sc_matsubara(calG,n,n0,delta,delta0)
+     sigma(:,1:L)     =  solve_mpt_sc_matsubara(calG(:,1:L),n,n0,delta,delta0)
      sigma     =  weight*sigma + (1.d0-weight)*sold;sold=sigma
 
      !this is an idea of Massimo, instead of checking error on the sum, do it 
-     !as a single array. 
+     !as a single array.
      sconvergence(1:L)=sigma(1,1:L) ; sconvergence(L+1:2*L)=sigma(2,1:L)
      converged = check_convergence(sconvergence(:),eps=eps_error,N1=Nsuccess,N2=nloop)
 
