@@ -1,5 +1,5 @@
 HERE  =`pwd`
-EXE=ahmmpt_real
+EXE=ahmmpt_matsubara
 DIR=./drivers/ahm
 DIREXE= $(HOME)/.bin
 

@@ -5,8 +5,6 @@
 !     AUTHORS  : Adriano Amaricci & Antonio Privitera
 !########################################################
 program ahmmpt
-  ! USE IPT_VARS_GLOBAL
-  ! USE MPT_SC_FUNX_SOPT
   USE DMFT_IPT
   USE IOTOOLS
 
@@ -27,6 +25,7 @@ program ahmmpt
 
   call read_input("inputIPT.in")
 
+  
 
   print*,"we are actually using",L,"frequencies"
   allocate(wr(L))
@@ -36,6 +35,7 @@ program ahmmpt
   allocate(fg(2,L),sigma(2,L))
   allocate(wf0(2,L),calG(2,L))
   allocate(sold(2,L),zeta(L))
+
 
   D=2.d0*ts; Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
   call bethe_lattice(wt,epsik,Lk,D)
@@ -95,7 +95,7 @@ program ahmmpt
      sigma = weight*sigma + (1.d0-weight)*sold ; sold=sigma
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
 
-     ! if(nread/=0.d0)call search_mu(converged)
+     if(nread/=0.d0)call search_mu(converged)
 
      call splot("nVSiloop.ipt",iloop,n,append=TT)
      call splot("deltaVSiloop.ipt",iloop,delta,append=TT)

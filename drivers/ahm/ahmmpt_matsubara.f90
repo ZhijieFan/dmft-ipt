@@ -4,11 +4,11 @@
 !     PURPOSE  : Solve the Attractive Hubbard Model using IPT
 !     AUTHORS  : Adriano Amaricci
 !########################################################
-program hmmpt_matsubara_fixn
+program hmmpt_matsubara
   USE DMFT_IPT
   USE IOTOOLS
   implicit none
-  integer                         :: i,ik,Lk,esp,lm
+  integer                         :: i,ik,esp,Lk
   logical                         :: converged,check1,check2,check
   complex(8)                      :: zeta,cdet
   real(8)                         :: n,delta,n0,delta0
@@ -20,10 +20,9 @@ program hmmpt_matsubara_fixn
   real(8),allocatable             :: wt(:),epsik(:),wm(:),tau(:)
 
 
-
+  include "revision.inc"
+  call version(revision)
   call read_input("inputIPT.in")
-
-  !call msg(bg_red("CODE VERSION: MASSIMO_CAPONE_13.02.2012"))
 
   allocate(wm(L),tau(0:L))
   wm(:)  = pi/beta*real(2*arange(1,L)-1,8)
@@ -35,10 +34,10 @@ program hmmpt_matsubara_fixn
   allocate(sigma(2,L),calG(2,L))
   allocate(det(L),Sold(2,L))
   allocate(sconvergence(2*L))
-  !
+
+
   D=2.d0*ts; Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
   call bethe_lattice(wt,epsik,Lk,D)
-
 
   call get_initial_sigma
 
@@ -54,6 +53,7 @@ program hmmpt_matsubara_fixn
         do ik=1,Lk
            cdet = abs(zeta-epsik(ik))**2 + (sigma(2,i))**2 
            fg(1,i)=fg(1,i) + wt(ik)*(conjg(zeta)-epsik(ik))/cdet
+
            fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet
         enddo
      enddo
@@ -154,7 +154,7 @@ contains
   subroutine get_initial_sigma()
     inquire(file="Sigma_iw.last",exist=check1)
     inquire(file="Self_iw.last",exist=check2)
-    check=check1*check2
+    check=check1.AND.check2
     if(check)then
        write(*,*)"Reading Sigma in input:"
        call sread("Sigma_iw.last",wm,sigma(1,:))
@@ -168,4 +168,4 @@ contains
     endif
   end subroutine get_initial_sigma
 
-end program hmmpt_matsubara_fixn
+end program hmmpt_matsubara
