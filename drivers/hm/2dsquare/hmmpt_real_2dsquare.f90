@@ -88,7 +88,7 @@ program hmmpt_2dsquare
      xmu0=x(1)
 
      sigma= solve_mpt_sopt(fg0,wr,n,n0,xmu0)
-     sigma=weigth*sigma + (1.d0-weigth)*sold
+     sigma=weight*sigma + (1.d0-weight)*sold
      sold=sigma
      converged=check_convergence(sigma,eps_error,nsuccess,nloop)
      call splot("nVSiloop.ipt",iloop,n,append=TT)

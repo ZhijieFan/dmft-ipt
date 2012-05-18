@@ -17,7 +17,7 @@ program hmmpt_matsubara
 
   !
   complex(8),allocatable          :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:)
-  real(8),allocatable             :: fgt(:,:),fg0t(:,:)
+  real(8),allocatable             :: fgt(:,:)
   complex(8),allocatable          :: det(:),sold(:,:),sconvergence(:)
   !
   real(8),allocatable             :: wt(:),epsik(:),wm(:),tau(:)
@@ -32,20 +32,18 @@ program hmmpt_matsubara
   allocate(wm(M),tau(0:M))
   wm(:)  = pi/beta*real(2*arange(1,M)-1,8)
   tau(0:)= linspace(0.d0,beta,M+1,mesh=dtau)
-  !write(*,"(A,I9,A)")"Using ",L," frequencies"
+
   !
-  allocate(fg(2,M),fgt(2,0:M))
-  allocate(fg0(2,L),calG(2,M),fg0t(2,0:M))
-  allocate(sigma(2,M))
-  allocate(det(L),Sold(2,L))
-  allocate(sconvergence(2*L))
+  allocate(fg(2,M),fg0(2,L),det(L))
+  allocate(calG(2,M),fgt(2,0:M),sigma(2,M))
+  allocate(Sold(2,M))
+  allocate(sconvergence(2*M))
 
 
   D=2.d0*ts; Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
   call bethe_lattice(wt,epsik,Lk,D)
 
   call get_initial_sigma
-
 
   iloop=0 ; converged=.false.
   do while (.not.converged)
@@ -61,10 +59,7 @@ program hmmpt_matsubara
            fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet
         enddo
      enddo
-
-     !Add tail to G_loc here:
-     mues(1)=-real(fg(1,L))*wm(L)**2
-     mues(2)=-real(fg(2,L))*wm(L)**2
+     mues(:)=-real(fg(:,L))*wm(L)**2
      do i=L+1,M
         fg(1,i)=-(mues(1)+xi*wm(i))/(mues(1)**2 + wm(i)**2 + mues(2)**2)
         fg(2,i)=-mues(2)/(mues(1)**2 + wm(i)**2 + mues(2)**2)
@@ -83,25 +78,27 @@ program hmmpt_matsubara
      calG(1,1:L) =  conjg(fg0(1,:))/det
      calG(2,1:L) =  fg0(2,:)/det
 
-     !Add tail to G_loc here:
-     mues(1)=-real(calG(1,L))*wm(L)**2
-     mues(2)=-real(calG(2,L))*wm(L)**2
+     !Add tail to calG:
+     mues(:)=-real(calG(:,L))*wm(L)**2
      do i=L+1,M
         calG(1,i)=-(mues(1)+xi*wm(i))/(mues(1)**2 + wm(i)**2 + mues(2)**2)
         calG(2,i)=-mues(2)/(mues(1)**2 + wm(i)**2 + mues(2)**2)
      enddo
-     call fftgf_iw2tau(calG(1,:),fg0t(1,:),beta)
-     call fftgf_iw2tau(calG(2,:),fg0t(2,:),beta,notail=.true.) !; fg0t(2,:)=-fg0t(2,:)
-     n0=-fg0t(1,M) ; delta0= -u*fg0t(2,M)
+     call fftgf_iw2tau(calG(1,:),fgt(1,:),beta)
+     call fftgf_iw2tau(calG(2,:),fgt(2,:),beta,notail=.true.)
+     n0=-fgt(1,M) ; delta0= -u*fgt(2,M)
      write(*,"(4(f16.12))",advance="no")n,n0,delta,delta0
 
-     sigma(:,1:L)     =  solve_mpt_sc_matsubara(calG(:,1:L),n,n0,delta,delta0)
-     sigma     =  weight*sigma + (1.d0-weight)*sold;sold=sigma
+     sigma =  solve_mpt_sc_matsubara(calG,n,n0,delta,delta0)
+     sigma =  weight*sigma + (1.d0-weight)*sold;sold=sigma
 
-     !this is an idea of Massimo, instead of checking error on the sum, do it 
-     !as a single array.
-     sconvergence(1:L)=sigma(1,1:L) ; sconvergence(L+1:2*L)=sigma(2,1:L)
-     converged = check_convergence(sconvergence(:),eps=eps_error,N1=Nsuccess,N2=nloop)
+     !this is an idea of Massimo, check error as a single array.
+     !sconvergence(1:M)=sigma(1,:) ; sconvergence(M+1:2*M)=sigma(2,:)
+     converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=nloop)
+
+     ! check1=check_convergence_local(sigma(1,:),eps_error,Nsuccess,nloop,id=0,index=1,total=2)
+     ! check2=check_convergence_local(sigma(2,:),eps_error,Nsuccess,nloop,id=0,index=2,total=2)
+     ! converged=check1*check2
 
      if(nread/=0.d0)call search_mu(converged)
 
@@ -115,8 +112,6 @@ program hmmpt_matsubara
      call splot("F_tau.ipt",tau,fgt(2,:),append=printf)
      call splot("calG_iw.ipt",wm,calG(1,:),append=printf)
      call splot("calF_iw.ipt",wm,calG(2,:),append=printf)
-     call splot("calG_tau.ipt",tau,fg0t(1,:),append=printf)
-     call splot("calF_tau.ipt",tau,fg0t(2,:),append=printf)
      call splot("Sigma_iw.ipt",wm,sigma(1,:),append=printf)
      call splot("Self_iw.ipt",wm,sigma(2,:),append=printf)
      call splot("observables.ipt",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=printf)
@@ -131,8 +126,6 @@ program hmmpt_matsubara
   call splot("F_tau.last",tau,fgt(2,:),append=FF)
   call splot("calG_iw.last",wm,calG(1,:),append=FF)
   call splot("calF_iw.last",wm,calG(2,:),append=FF)
-  call splot("calG_tau.last",tau,fg0t(1,:),append=FF)
-  call splot("calF_tau.last",tau,fg0t(2,:),append=FF)
   call splot("Sigma_iw.last",wm,sigma(1,:),append=FF)
   call splot("Self_iw.last",wm,sigma(2,:),append=FF)
   call splot("observables.last",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=FF)
@@ -144,10 +137,11 @@ contains
   include "internal_energy_ahm_matsubara.f90"
 
   subroutine search_mu(convergence)
-    integer, save         ::nindex
-    integer               ::nindex1
+    integer, save         :: nindex
+    integer               :: nindex1
     real(8)               :: naverage,ndelta1
     logical,intent(inout) :: convergence
+
     naverage=n
     nindex1=nindex
     ndelta1=ndelta
@@ -159,13 +153,14 @@ contains
        nindex=0
     endif
     if(nindex1+nindex==0)then !avoid loop forth and back
-       ndelta=real(ndelta1/2.d0,8) !decreasing the step
-       xmu=xmu+real(nindex,8)*ndelta
+       ndelta=ndelta1/2.d0    !decreasing the step
     else
        ndelta=ndelta1
-       xmu=xmu+real(nindex,8)*ndelta
     endif
-    write(*,"(A,2f15.12,A,f15.12,A,I3,f15.12)")"mu,n=",xmu,naverage,"/",nread,"| ",nindex,ndelta
+    xmu=xmu+real(nindex,8)*ndelta
+
+    write(*,"(A,f15.12,A,f15.12,A,f15.12,A,f15.12)")" n=",naverage,"/",nread,"| shift=",nindex*ndelta,"| mu=",xmu
+
     if(abs(naverage-nread)>nerror)convergence=.false.
     call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
   end subroutine search_mu

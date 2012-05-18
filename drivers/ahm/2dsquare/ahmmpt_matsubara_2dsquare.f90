@@ -39,9 +39,9 @@ program hmmpt_2dsquare_matsubara
 
 
   !build square lattice structure:
-  Lk   = square_lattice_dimension(Nx,Nx)
+  Lk   = square_lattice_dimension(Nx)
   allocate(wt(Lk),epsik(Lk))
-  wt   = square_lattice_structure(Lk,Nx,Nx)
+  wt   = square_lattice_structure(Lk,Nx)
   epsik= square_lattice_dispersion_array(Lk,ts)
   call get_initial_sigma
 

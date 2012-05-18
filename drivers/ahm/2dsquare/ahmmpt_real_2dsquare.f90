@@ -23,6 +23,9 @@ program ahmmpt
   !
   real(8),allocatable    :: wt(:),epsik(:),wr(:)
 
+
+  include "revision.inc"
+  call version(revision)
   call read_input("inputIPT.in")
 
   
@@ -45,6 +48,7 @@ program ahmmpt
 
 
   call get_initial_sigma
+
 
   iloop=0 ; converged=.false.
   do while (.not.converged)

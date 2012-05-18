@@ -1,6 +1,6 @@
 HERE  =`pwd`
-EXE=ahmmpt_matsubara
-DIR=./drivers/ahm
+EXE=hmipt_matsubara_2dsquare_thermostat
+DIR=./drivers/hm/2dsquare
 DIREXE= $(HOME)/.bin
 
 #########################################################################
