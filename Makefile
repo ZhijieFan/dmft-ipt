@@ -1,6 +1,6 @@
 HERE  =`pwd`
-EXE=hmmpt_af_matsubara
-DIR=./drivers/hm
+EXE=ahmmpt_matsubara_phase
+DIR=./drivers/ahm
 DIREXE= $(HOME)/.bin
 
 #########################################################################
