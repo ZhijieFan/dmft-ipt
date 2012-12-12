@@ -4,21 +4,26 @@
 !     PURPOSE  : Solve the Attractive Hubbard Model using IPT
 !     AUTHORS  : Adriano Amaricci
 !########################################################
-program hmmpt_matsubara
+program ahmmpt_matsubara_phase_2dsquare
   USE DMFT_IPT
   USE IOTOOLS
+  USE RANDOM
+  USE CHRONOBAR
+  USE SQUARE_LATTICE
   implicit none
   integer                         :: i,ik,esp,Lk,M
   logical                         :: converged,check1,check2,check
   complex(8)                      :: zeta,cdet
-  real(8)                         :: n,delta,n0,delta0,w
-  !tails
-  real(8),dimension(2) :: mues
+  complex(8)                      :: delta,delta0
+  real(8)                         :: n,n0,w
+  real(8)                         :: sc_phase,sc_mod
+  real(8)                         :: sc0_phase,sc0_mod
 
   !
   complex(8),allocatable          :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:)
-  real(8),allocatable             :: fgt(:,:)
-  complex(8),allocatable          :: det(:),sold(:,:),sconvergence(:)
+  real(8),allocatable             :: fgt(:)
+  complex(8),allocatable          :: fft(:)
+  complex(8),allocatable          :: det(:),sold(:,:)
   !
   real(8),allocatable             :: wt(:),epsik(:),wm(:),tau(:)
 
@@ -27,111 +32,109 @@ program hmmpt_matsubara
   call version(revision)
   call read_input("inputIPT.in")
 
-  M=L                           !Multiply here to include tail treatments. Experimental
 
-  allocate(wm(M),tau(0:M))
-  wm(:)  = pi/beta*real(2*arange(1,M)-1,8)
-  tau(0:)= linspace(0.d0,beta,M+1,mesh=dtau)
+  allocate(wm(L),tau(0:L))
+  wm(:)  = pi/beta*real(2*arange(1,L)-1,8)
+  tau(0:)= linspace(0.d0,beta,L+1,mesh=dtau)
 
   !
-  allocate(fg(2,M),fg0(2,L),det(L))
-  allocate(calG(2,M),fgt(2,0:M),sigma(2,M))
-  allocate(Sold(2,M))
-  allocate(sconvergence(2*M))
+  allocate(fg(2,L),fg0(2,L),calG(2,L))
+  allocate(sigma(2,L),sold(2,L))
+  allocate(det(L))
+  allocate(fgt(0:L),fft(0:L))
 
 
-  D=2.d0*ts; Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
-  call bethe_lattice(wt,epsik,Lk,D)
-
+  !build square lattice structure:
+  Lk   = square_lattice_dimension(Nx)
+  allocate(wt(Lk),epsik(Lk))
+  wt   = square_lattice_structure(Lk,Nx)
+  epsik= square_lattice_dispersion_array(Lk,ts)
   call get_initial_sigma
 
   iloop=0 ; converged=.false.
   do while (.not.converged)
      iloop=iloop+1
-     write(*,"(A,i5)",advance="no")"DMFT-loop",iloop
+     write(*,"(A,i5)",advance="yes")"DMFT-loop",iloop
 
+     call start_timer
      fg=zero
      do i=1,L
         zeta =  xi*wm(i) + xmu - sigma(1,i)
         do ik=1,Lk
-           cdet = abs(zeta-epsik(ik))**2 + (sigma(2,i))**2 
-           fg(1,i)=fg(1,i) + wt(ik)*(conjg(zeta)-epsik(ik))/cdet
-           fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet
+           cdet = abs(zeta-epsik(ik))**2 + abs(sigma(2,i))**2
+           fg(1,i)=fg(1,i) + wt(ik)*conjg(zeta-epsik(ik))/cdet
+           fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet !inverse is transpose!!!
         enddo
      enddo
-     !EXP: tails
-     ! mues(:)=-real(fg(:,L))*wm(L)**2
-     ! do i=L+1,M
-     !    fg(1,i)=-(mues(1)+xi*wm(i))/(mues(1)**2 + wm(i)**2 + mues(2)**2)
-     !    fg(2,i)=-mues(2)/(mues(1)**2 + wm(i)**2 + mues(2)**2)
-     ! enddo
-     call fftgf_iw2tau(fg(1,:),fgt(1,0:),beta)
-     call fftgf_iw2tau(fg(2,:),fgt(2,0:),beta,notail=.true.)
-     n=-fgt(1,M) ; delta= -u*fgt(2,M)
 
+     call fftgf_iw2tau(fg(1,:),fgt(0:),beta)
+     call fftff_iw2tau(fg(2,:),fft(0:),beta)
+     n=-fgt(L) ; delta= -u*fft(L)
 
      !calcola calG0^-1, calF0^-1 (WFs)
-     det      =  abs(fg(1,1:L))**2 + fg(2,1:L)**2
-     fg0(1,:) =  conjg(fg(1,1:L))/det + sigma(1,1:L) + u*(n-0.5d0)
-     fg0(2,:) =  fg(2,1:L)/det        + sigma(2,1:L) +  delta
+     det      =  abs(fg(1,:))**2     + abs(fg(2,:))**2
+     fg0(1,:) =  conjg(fg(1,:))/det  + sigma(1,:) + u*(n-0.5d0)
+     fg0(2,:) =  fg(2,:)/det         + sigma(2,:) +  delta
 
-     det       =  abs(fg0(1,:))**2 + fg0(2,:)**2
-     calG(1,1:L) =  conjg(fg0(1,:))/det
-     calG(2,1:L) =  fg0(2,:)/det
+     det       =  abs(fg0(1,:))**2   + abs(fg0(2,:))**2
+     calG(1,:) =  conjg(fg0(1,:))/det
+     calG(2,:) =  fg0(2,:)/det
 
-     !EXP: tails
-     ! mues(:)=-real(calG(:,L))*wm(L)**2
-     ! do i=L+1,M
-     !    calG(1,i)=-(mues(1)+xi*wm(i))/(mues(1)**2 + wm(i)**2 + mues(2)**2)
-     !    calG(2,i)=-mues(2)/(mues(1)**2 + wm(i)**2 + mues(2)**2)
-     ! enddo
-     call fftgf_iw2tau(calG(1,:),fgt(1,:),beta)
-     call fftgf_iw2tau(calG(2,:),fgt(2,:),beta,notail=.true.)
-     n0=-fgt(1,M) ; delta0= -u*fgt(2,M)
-     write(*,"(4(f16.12))",advance="no")n,n0,delta,delta0
+     call fftgf_iw2tau(calG(1,:),fgt(0:),beta)
+     call fftff_iw2tau(calG(2,:),fft(0:),beta)
+     n0=-fgt(L) ; delta0= -u*fft(L)
+
+     sc_mod=abs(delta)
+     sc0_mod=abs(delta0)
+     sc_phase=atan2(dimag(delta),real(delta,8))
+     sc0_phase=atan2(dimag(delta0),real(delta,8))
+
+     write(*,"(6(f16.12))",advance="no")n,n0,sc_mod,sc_phase,sc0_mod,sc0_phase
 
      sigma =  solve_mpt_sc_matsubara(calG,n,n0,delta,delta0)
      sigma =  weight*sigma + (1.d0-weight)*sold;sold=sigma
 
      !this is an idea of Massimo, check error as a single array.
-     !sconvergence(1:M)=sigma(1,:) ; sconvergence(M+1:2*M)=sigma(2,:)
-     converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=nloop)
+     converged = check_convergence_scalar(sc_mod,eps=eps_error,N1=Nsuccess,N2=nloop)
 
      if(nread/=0.d0)call search_mu(converged)
 
-     call splot("nVSiloop.ipt",iloop,n,append=TT)
-     call splot("deltaVSiloop.ipt",iloop,delta,append=TT)
+     call splot("nVSiloop.ipt",iloop,n,n0,append=TT)
+     call splot("deltaVSiloop.ipt",iloop,sc_mod,sc0_mod,append=TT)
+     call splot("phaseVSiloop.ipt",iloop,sc_phase,sc0_phase,append=TT)
 
-     !This stays here for the time being, until the code is bomb proof
+     ! This stays here for the time being, until the code is bomb proof
      call splot("G_iw.ipt",wm,fg(1,:),append=printf)
      call splot("F_iw.ipt",wm,fg(2,:),append=printf)
-     call splot("G_tau.ipt",tau,fgt(1,:),append=printf)
-     call splot("F_tau.ipt",tau,fgt(2,:),append=printf)
+     call splot("G_tau.ipt",tau,fgt,append=printf)
+     call splot("F_tau.ipt",tau,fft,append=printf)
      call splot("calG_iw.ipt",wm,calG(1,:),append=printf)
      call splot("calF_iw.ipt",wm,calG(2,:),append=printf)
+     call splot("calG_tau.ipt",tau,fgt,append=printf)
+     call splot("calF_tau.ipt",tau,fft,append=printf)
      call splot("Sigma_iw.ipt",wm,sigma(1,:),append=printf)
      call splot("Self_iw.ipt",wm,sigma(2,:),append=printf)
-     call splot("observables.ipt",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=printf)
+     call splot("observables.ipt",beta,xmu,u,n,n0,sc_mod,sc0_mod,sc_phase,sc0_phase,append=printf)
+     call stop_timer
   enddo
 
   call close_file("nVSiloop.ipt")
   call close_file("deltaVSiloop.ipt")
+  call close_file("phaseVSiloop.ipt")
 
   call splot("G_iw.last",wm,fg(1,:),append=FF)
   call splot("F_iw.last",wm,fg(2,:),append=FF)
-  call splot("G_tau.last",tau,fgt(1,:),append=FF)
-  call splot("F_tau.last",tau,fgt(2,:),append=FF)
+  call splot("G_tau.last",tau,fgt,append=FF)
+  call splot("F_tau.last",tau,fft,append=FF)
   call splot("calG_iw.last",wm,calG(1,:),append=FF)
   call splot("calF_iw.last",wm,calG(2,:),append=FF)
   call splot("Sigma_iw.last",wm,sigma(1,:),append=FF)
   call splot("Self_iw.last",wm,sigma(2,:),append=FF)
-  call splot("observables.last",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=FF)
+  call splot("observables.last",beta,xmu,u,n,n0,sc_mod,sc0_mod,sc_phase,sc0_phase,append=FF)
 
-  call get_sc_internal_energy
+  !call get_sc_internal_energy
 
-contains
-
-  include "internal_energy_ahm_matsubara.f90"
+contains  
 
   subroutine search_mu(convergence)
     integer, save         :: nindex
@@ -174,10 +177,14 @@ contains
     else
        print*,"Using Hartree-Fock self-energy"
        print*,"===================================="
-       n=0.5d0 ; delta=deltasc
+       call init_random_number
+       call random_number(sc_phase)
+       sc_phase=sc_phase*pi2
+       n=0.5d0
+       delta=abs(deltasc)*exp(xi*sc_phase)
        sigma(2,:)=-delta ; sigma(1,:)=zero
        sold=sigma
     endif
   end subroutine get_initial_sigma
 
-end program hmmpt_matsubara
+end program ahmmpt_matsubara_phase_2dsquare

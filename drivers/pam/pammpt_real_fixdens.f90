@@ -13,28 +13,30 @@ module COMMON
   real(8)                :: xmu0,n,n0
   complex(8),allocatable :: sigma(:),fg(:),fg0(:),gamma(:)
   complex(8),allocatable :: sigmap(:),fgp(:),fg0p(:)
-  namelist/pamvar/vpd,ed0,ep0
+  real(8),allocatable    :: wr(:)
 end module COMMON
 
 function funcv(x)
   USE COMMON
   USE DMFT_IPT
   implicit none
+  integer :: i
   real(8),dimension(:),intent(in)  ::  x
   real(8),dimension(size(x))       ::  funcv
-  real(8)                          ::  zn0
   xmu0=x(1)
   fg0 = one/(cmplx(wr,eps) + xmu0 - ed0 - gamma -U*(n-0.5d0))
   n0=sum(fermi(wr,beta)*aimag(fg0))/sum(aimag(fg0))
   funcv(1)=n-n0
-  write(*,"(3(f13.9))")n,n0,xmu0
+  write(*,"(4(f13.9))")n,n0,xmu0
 end function funcv
 
 
 program pammpt
   USE DMFT_IPT
   USE COMMON
+  USE IOTOOLS
   implicit none
+  integer                :: i,iloop
   real(8)                :: x(1)
   logical                :: check,converged
   complex(8)             :: zeta,alpha
@@ -43,58 +45,101 @@ program pammpt
 
   call read_input("inputIPT.in")
 
-  allocate(fg(-L:L),sigma(-L:L),fg0(-L:L),gamma(-L:L))
-  allocate(fgp(-L:L),fg0p(-L:L),sigmap(-L:L))
-  allocate(sold(-L:L))
+  allocate(fg(1:L),sigma(1:L),fg0(1:L),gamma(1:L))
+  allocate(fgp(1:L),fg0p(1:L),sigmap(1:L))
+  allocate(sold(1:L))
+  allocate(wr(1:L))
+  wm  = pi/beta*real(2*arange(1,L)-1,8)
+  tau = linspace(0.d0,beta,L+1,mesh=dtau)
+  gmu=xmu  ; gzero=0.d0
+  if((ed0-ep0) > 0.d0)gzero=0.5*(ep0+ed0+sqrt((ep0-ed0)**2 + 4*Vpd**2))
+  if((ed0-ep0) < 0.d0)gzero=0.5*(ep0+ed0-sqrt((ep0-ed0)**2 + 4*Vpd**2))
+  if((ed0-ep0) /=0.d0)xmu=gmu+gzero !true ED chemical potential
+  write(*,*)'shift mu to (from) = ',xmu,'(',gmu,')'
+  write(*,*)'shift is           = ',gzero
 
-  include "init_pam.h"
+  wr=linspace(-wmax,wmax,L,mesh=fmesh)
 
-  sigma=zero  ; xmu0=xmu 
-  iloop=0 ; converged=.false. ; sold=sigma
+  D=2.d0*ts
+  n=0.5d0
+  sigma=zero
+  xmu0=xmu
+  iloop=0
+  converged=.false. ; sold=sigma
   do while (.not.converged)
      iloop=iloop+1
      write(*,"(A,i5)")"DMFT-loop",iloop
 
-     do i=-L,L
-        alpha     = cmplx(wr(i),eps)  +xmu -ed0 - sigma(i)
+     do i=1,L
+        alpha  = cmplx(wr(i),eps)  +xmu -ed0 - sigma(i)
         sigmap(i) = Vpd**2/alpha
-        zeta      = cmplx(wr(i),eps)  +xmu -ep0 - sigmap(i)
-        fgp(i)    = gfbether(wr(i),zeta,D)
-        fg(i)     = one/alpha + Vpd**2/alpha**2*fgp(i)
+        zeta  = cmplx(wr(i),eps)  +xmu -ep0 - sigmap(i)
+        fgp(i) = gfbether(wr(i),zeta,D)
+        fg(i) = one/alpha + Vpd**2/alpha**2*fgp(i)
      enddo
      n  = sum(fermi(wr,beta)*aimag(fg))/sum(aimag(fg))
-     np = 2.d0*sum(aimag(fgp(-L:L))*fermi(wr(-L:L),beta))/sum(aimag(fgp(-L:L)))
+     np = 2.d0*sum(aimag(fgp)*fermi(wr,beta))/sum(aimag(fgp))
      ntot = np+2.d0*n
 
      !Get the hybridization functions: \Gamma(w+xmu)
      gamma= cmplx(wr,eps) + xmu - ed0 - sigma - one/fg
 
      !Fix the xmu0 w/ condition n0=n
-     x(1)=xmu
-     call broydn(x,check)       !this changes n0,xmu0
+     x(1)=xmu0
+     call broydn(x,check)
      xmu0=x(1)
 
-     sigma= solve_mpt_sopt(fg0,n,n0,xmu0)
-     sigma=weigth*sigma + (1.d0-weigth)*sold
+     sigma= solve_mpt_sopt(fg0,wr,n,n0,xmu0)
+     sigma=weight*sigma + (1.d0-weight)*sold
      sold=sigma
      converged=check_convergence(sigma,eps_error,Nsuccess,Nloop)
+     call search_mu(converged)
      call splot("ndVSiloop.ipt",iloop,2.d0*n,append=TT)
      call splot("npVSiloop.ipt",iloop,np,append=TT)
      call splot("ntotVSiloop.ipt",iloop,ntot,append=TT)
   enddo
 
-  call splot("nd.np.ntot.ipt",n,np,ntot,append=TT)
-  call splot("DOS.ipt",wr,-aimag(fg)/pi,-aimag(fgp)/pi,append=TT)
+  call splot("observables_last.ipt",xmu,u,vpd,beta,n,np,ntot,append=printf) 
+  call splot("DOS.ipt",wr,-aimag(fg)/pi,-aimag(fgp)/pi,append=printf)
   call splot("Sigma_realw.ipt",wr,sigma,append=printf)
   call splot("Sigmap_realw.ipt",wr,sigmap,append=printf)
   call splot("G_realw.ipt",wr,fg,append=printf)
   call splot("Gp_realw.ipt",wr,fgp,append=printf)
 
+  ! Lk=(Nx+1)**2
+  ! call pam_getenergy_spt(Lk)
 
-  !   Lk=(Nx+1)**2
-  !   call pam_getenergy_spt(Lk)
+contains
 
-  ! contains
+
+  subroutine search_mu(convergence)
+    integer, save         ::nindex
+    integer               ::nindex1
+    real(8)               :: naverage,ndelta1
+    logical,intent(inout) :: convergence
+    naverage=ntot
+    nindex1=nindex
+    ndelta1=ndelta
+    if((naverage >= nread+nerror))then
+       nindex=-1
+    elseif(naverage <= nread-nerror)then
+       nindex=1
+    else
+       nindex=0
+    endif
+    if(nindex1+nindex==0)then !avoid loop forth and back
+       ndelta=ndelta1/exp(1.d0) !decreasing the step
+    else
+       ndelta=ndelta1
+    endif
+    xmu=xmu+real(nindex,8)*ndelta
+    write(*,"(A,f15.12,A,f15.12,A,f15.12,A,f15.12)")" n=",naverage,"/",nread,"| shift=",nindex*ndelta,"| mu=",xmu
+    write(*,"(A,f15.12,A,f15.12)")"Density Error:",abs(naverage-nread),'/',nerror
+    print*,""
+    if(abs(naverage-nread)>nerror)convergence=.false.
+    call splot("muVSiter.data",iloop,xmu,abs(naverage-nread),append=.true.)
+  end subroutine search_mu
+
   !   !+-------------------------------------------------------------------+
   !   !PROGRAM  : 
   !   !TYPE     : Subroutine
@@ -191,6 +236,7 @@ program pammpt
   !   !*******************************************************************
 
 end program pammpt
+
 
 
 

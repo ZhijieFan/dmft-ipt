@@ -13,7 +13,7 @@ program hmipt_matsuara_2dsquare
 
   logical                :: converged
   real(8)                :: n,z
-  integer                :: Lk
+  integer                :: i,Lk
   complex(8)             :: zeta
   type(matsubara_gf)     :: fg,sigma
   complex(8),allocatable :: fg0(:)

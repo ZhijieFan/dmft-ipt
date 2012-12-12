@@ -28,7 +28,7 @@ program hmmpt_2dsquare_matsubara
   allocate(wm(L),tau(0:L))
   wm(:)  = pi/beta*real(2*arange(1,L)-1,8)
   tau(0:)= linspace(0.d0,beta,L+1,mesh=dtau)
-  write(*,"(A,I9,A)")"Using ",L," frequencies"
+
   !
   allocate(fg(2,L),fgt(2,0:L))
   allocate(fg0(2,L),fg0t(2,0:L))

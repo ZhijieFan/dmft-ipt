@@ -1,42 +1,62 @@
-HERE  =`pwd`
-EXE=ahmmpt_matsubara_phase
-DIR=./drivers/ahm
+#########################################################################
+include lib.mk
+#########################################################################
+EXE=hmipt_real
+DIR=./drivers/hm
 DIREXE= $(HOME)/.bin
 
-#########################################################################
-include $(SFDIR)/etc/lib.mk
-include $(SFDIR)/etc/libdmft.mk
-#########################################################################
+.SUFFIXES: .f90 
+OBJS=IPT_VARS_GLOBAL.o \
+IPT_MATS.o    \
+IPT_KELDYSH.o \
+IPT_SOPT.o    \
+IPT_SC_SOPT.o \
+IPT_SC_MATS.o \
+IPT_AF_MATS.o \
+DMFT_IPT.o
 
+ARGS= $(SFMODS) $(SFLIBS)
+ARGS_DEB=$(SFMODS_DEB) $(SFLIBS_DEB)
+BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 
-all: 	version
+#=================STANDARD COMPILATION====================================
+all: FLAG=$(STD)
+all: version $(OBJS)
 	@echo " ........... compile: optimized ........... "
 	@echo $(VER)
-	$(FC) $(STD) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(SFMODS) $(SFLIBS) 
+	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(ARGS)
 	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)
 
-opt: 	version
+#================OPTIMIZED COMPILATION====================================
+opt: FLAG=$(OPT)
+opt: 	version $(OBJS)
 	@echo " ........... compile: optimized ........... "
-	$(FC) $(OPT) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT) $(SFMODS) $(SFLIBS)
+	@echo $(VER)
+	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(ARGS)
 	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)
 
 
-debug: 	version
+#================DEBUGGIN COMPILATION=====================================
+debug: FLAG=$(DEB)
+debug: 	version $(OBJS)
 	@echo " ........... compile : debug   ........... "
-	$(FC) $(DEB) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(LIBDMFT_DEB) $(SFMODS_DEB) $(SFLIBS_DEB) 
+	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(ARGS_DEB)
 	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)
 
+
+.f90.o:	
+	$(FC) $(FLAG) -c $< $(SFMODS) 
 
 clean: 
 	@echo 'removing *.mod *.o *~'
 	@rm -vf *.mod *.o *~ revision.inc
 
 #########################################################################
-include $(SFDIR)/etc/version.mk
+include version.mk
 #########################################################################
