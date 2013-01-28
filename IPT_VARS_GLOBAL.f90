@@ -24,7 +24,7 @@ module IPT_VARS_GLOBAL
   real(8) :: tpd,vpd        !hybridization,band-band coupling
   real(8) :: ed0,ep0        !orbital energies
   real(8) :: xmu            !chemical potential
-  real(8) :: dt,dtau        !time step
+  real(8) :: dt        !time step
   real(8) :: fmesh          !freq. step
   real(8) :: beta           !inverse temperature
   real(8) :: eps            !broadening
@@ -42,9 +42,11 @@ module IPT_VARS_GLOBAL
   namelist/variables/&
        L,        &
        beta,     &
-       U,        &
+       U,V,       &
        ts,tsp,   &
-       tdd,tpp,  &
+       tdd,tpp,   &
+       vpd,      &
+       ed0,ep0,  &
        xmu,      &
        wmax,     &
        Nx,       &
@@ -77,9 +79,9 @@ contains
     tsp   = 0.d0
     tdd   = 0.d0
     tpp   = 0.d0
-    vpd=0.4d0
-    ed0=0.d0
-    ep0=0.d0
+    vpd   = 0.4d0
+    ed0   = 0.d0
+    ep0   = 0.d0
     xmu   = 0.d0
     Nx    = 20
     nloop = 10
@@ -160,6 +162,8 @@ contains
     call parse_cmd_variable(beta,"BETA")
     call parse_cmd_variable(ts,"TS")
     call parse_cmd_variable(tsp,"TSP")
+    call parse_cmd_variable(tpp,"TPP")
+    call parse_cmd_variable(tdd,"TDD")
     call parse_cmd_variable(xmu,"XMU")
     call parse_cmd_variable(vpd,"VPD")
     call parse_cmd_variable(ed0,"ED0")

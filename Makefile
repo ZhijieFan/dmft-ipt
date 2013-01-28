@@ -1,8 +1,10 @@
 #########################################################################
-include lib.mk
+include sfmake.inc
 #########################################################################
-EXE=hmipt_real
-DIR=./drivers/hm
+#EXE=hmipt_matsubara_2dsquare_noHF_upm
+#EXE=pammpt_real_fixdens
+EXE=hmipt_keldysh_2dsquare
+DIR=./drivers
 DIREXE= $(HOME)/.bin
 
 .SUFFIXES: .f90 
@@ -57,6 +59,5 @@ clean:
 	@echo 'removing *.mod *.o *~'
 	@rm -vf *.mod *.o *~ revision.inc
 
-#########################################################################
-include version.mk
-#########################################################################
+version:
+	@echo $(VER)

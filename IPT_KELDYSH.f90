@@ -8,60 +8,73 @@ module IPT_KELDYSH
   use IPT_VARS_GLOBAL
   private
 
+  integer                      :: M
   integer,save                 :: loop=1 
   type(keldysh_equilibrium_gf) :: fg0,sigma
-  real(8),allocatable          :: t(:),wr(:)
+  real(8)                      :: dt_,dw_
+  real(8),allocatable          :: t_(:),wr_(:)
   public                       :: solve_ipt_keldysh
 
 contains
 
   !+-------------------------------------------------------------------+
-  !PROGRAM  : 
   !PURPOSE  : 
-  !COMMENT  : 
   !+-------------------------------------------------------------------+
-  function solve_ipt_keldysh(fg0_,wr_,t_) result(sigma_)
-    complex(8),dimension(2*L) :: fg0_,sigma_
-    real(8),dimension(2*L)   :: wr_
-    real(8),dimension(-L:L)  :: t_
+  function solve_ipt_keldysh(fg0_,wmax_) result(sigma_)
+    complex(8),dimension(:)              :: fg0_
+    complex(8),dimension(size(fg0_)) :: sigma_
+    real(8)                              :: wmax_
+    M=size(fg0_)/2
     if(loop==1)then
-       if(.not.fg0%status)  call allocate_gf(fg0,L)
-       if(.not.sigma%status)call allocate_gf(sigma,L)
+       if(.not.fg0%status)  call allocate_gf(fg0,M)
+       if(.not.sigma%status)call allocate_gf(sigma,M)
     endif
-    fg0%ret%w=fg0_ ; t=t_ ; wr=wr_
-    dt=abs(t(2)-t(1)) ; fmesh=abs(wr(2)-wr(1))
+    fg0%ret%w = fg0_
+    dt_       = pi/wmax_
+    dw_       = 2.d0*wmax_/real(2*M-1,8) 
+    allocate(wr_(2*M),t_(-M:M))
+    wr_  = linspace(-wmax_,wmax_,2*M,mesh=dw_)
+    t_   = linspace(-dt_*real(M,8),dt_*real(M,8),2*M+1,mesh=dt_)
     call simpurity
     sigma_=sigma%ret%w
     loop=loop+1
+    deallocate(wr_,t_)
   end function solve_ipt_keldysh
   !*******************************************************************
   !*******************************************************************
   !*******************************************************************
 
-
-
-
-
-
-
   !+-------------------------------------------------------------------+
-  !PROGRAM  : 
   !PURPOSE  : 
-  !COMMENT  : 
   !+-------------------------------------------------------------------+
   subroutine simpurity
+    integer :: i
+    real(8) :: A
     !FFT to real time:
     !G0^{<,>}(t) = FT[G0^{<,>}(w)]
-    call fftgf_rw2rt(fg0%less%w,fg0%less%t,L);   fg0%less%t=xi*fmesh*fg0%less%t
-    call fftgf_rw2rt(fg0%gtr%w ,fg0%gtr%t ,L);   fg0%gtr%t =xi*fmesh*fg0%gtr%t
-    fg0%ret%t=ret_component_t(fg0%gtr%t,fg0%less%t,t,L)
-    do i=-L,L
-       sigma%less%t(i)=(U**2)*(fg0%less%t(i)**2)*fg0%gtr%t(-i)
-       sigma%gtr%t(i) =(U**2)*(fg0%gtr%t(i)**2)*fg0%less%t(-i)
+    do i=1,2*M
+       A = -dimag(fg0%ret%w(i))/pi
+       fg0%less%w(i) = pi2*xi*fermi(wr_(i),beta)*A
+       fg0%gtr%w(i)  = pi2*xi*(fermi(wr_(i),beta)-1.d0)*A
     enddo
-    sigma%ret%t=ret_component_t(sigma%gtr%t,sigma%less%t,t,L)
-    call fftgf_rt2rw(sigma%ret%t,sigma%ret%w,L); sigma%ret%w= dt*sigma%ret%w
-    call fftgf_rt2rw(fg0%ret%t,fg0%ret%w,L)    ; fg0%ret%w  = dt*fg0%ret%w
+    call fftgf_rw2rt(fg0%less%w,fg0%less%t,M) ; fg0%less%t=dw_/pi2*fg0%less%t
+    call fftgf_rw2rt(fg0%gtr%w,fg0%gtr%t,M)   ; fg0%gtr%t =dw_/pi2*fg0%gtr%t
+    do i=-M,M
+       sigma%less%t(i)=(U**2)*(fg0%less%t(i)**2)*fg0%gtr%t(-i) 
+       sigma%gtr%t(i) =(U**2)*(fg0%gtr%t(i)**2)*fg0%less%t(-i)
+       sigma%ret%t(i) =heaviside(t_(i))*(sigma%gtr%t(i)-sigma%less%t(i))
+    enddo
+    if(heaviside(0.d0)==1.d0)sigma%ret%t(0)=sigma%ret%t(0)/2.d0 
+    call fftgf_rt2rw(sigma%ret%t,sigma%ret%w,M) ; sigma%ret%w=dt_*sigma%ret%w
+    !call fftgf_rw2rt(fg0%less%w,fg0%less%t,Lw);   fg0%less%t=xi*dw_*fg0%less%t
+    !call fftgf_rw2rt(fg0%gtr%w ,fg0%gtr%t ,Lw);   fg0%gtr%t =xi*dw_*fg0%gtr%t
+    ! fg0%ret%t=ret_component_t(fg0%gtr%t,fg0%less%t,t,Lw)
+    ! do i=-Lw,Lw
+    !    sigma%less%t(i)=(U**2)*(fg0%less%t(i)**2)*fg0%gtr%t(-i)
+    !    sigma%gtr%t(i) =(U**2)*(fg0%gtr%t(i)**2)*fg0%less%t(-i)
+    ! enddo
+    ! sigma%ret%t=ret_component_t(sigma%gtr%t,sigma%less%t,t,Lw)
+    ! call fftgf_rt2rw(sigma%ret%t,sigma%ret%w,Lw); sigma%ret%w= dt_*sigma%ret%w
   end subroutine simpurity
   !*******************************************************************
   !*******************************************************************

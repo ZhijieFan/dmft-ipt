@@ -39,7 +39,7 @@ program pammpt
   real(8)                :: x(1)
   logical                :: check,converged
   complex(8)             :: zeta,alpha
-  real(8)                :: np,gzero,gmu,ntot
+  real(8)                :: np,gzero,gmu,ntot,dtau
   complex(8),allocatable :: sold(:)
 
   call read_input("inputIPT.in")

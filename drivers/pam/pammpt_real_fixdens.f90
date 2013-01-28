@@ -49,8 +49,8 @@ program pammpt
   allocate(fgp(1:L),fg0p(1:L),sigmap(1:L))
   allocate(sold(1:L))
   allocate(wr(1:L))
-  wm  = pi/beta*real(2*arange(1,L)-1,8)
-  tau = linspace(0.d0,beta,L+1,mesh=dtau)
+  ! wm  = pi/beta*real(2*arange(1,L)-1,8)
+  ! tau = linspace(0.d0,beta,L+1,mesh=dtau)
   gmu=xmu  ; gzero=0.d0
   if((ed0-ep0) > 0.d0)gzero=0.5*(ep0+ed0+sqrt((ep0-ed0)**2 + 4*Vpd**2))
   if((ed0-ep0) < 0.d0)gzero=0.5*(ep0+ed0-sqrt((ep0-ed0)**2 + 4*Vpd**2))
