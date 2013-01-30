@@ -55,12 +55,16 @@ program pammpt
   tau = linspace(0.d0,beta,L+1,mesh=dtau)
   wm  = pi/beta*real(2*arange(1,L)-1,8)
   tau = linspace(0.d0,beta,L+1,mesh=dtau)
+
+
+
   gmu=xmu  ; gzero=0.d0
   if((ed0-ep0) > 0.d0)gzero=0.5*(ep0+ed0+sqrt((ep0-ed0)**2 + 4*Vpd**2))
   if((ed0-ep0) < 0.d0)gzero=0.5*(ep0+ed0-sqrt((ep0-ed0)**2 + 4*Vpd**2))
   if((ed0-ep0) /=0.d0)xmu=gmu+gzero !true ED chemical potential
   write(*,*)'shift mu to (from) = ',xmu,'(',gmu,')'
   write(*,*)'shift is           = ',gzero
+  write(*,*)'real W_eff=',vpd**2/sqrt((ep0-ed0)**2 + 4*Vpd**2)
 
   D=2.d0*ts
   n=0.5d0
@@ -129,8 +133,8 @@ contains
     else
        nindex=0
     endif
-    if(nindex1+nindex==0)then !avoid loop forth and back
-       ndelta=ndelta1/exp(1.d0) !decreasing the step
+    if(nindex1+nindex==0.AND.nindex/=0)then !avoid loop forth and back
+       ndelta=ndelta1/(exp(1.d0)/2.d0) !decreasing the step
     else
        ndelta=ndelta1
     endif
@@ -139,7 +143,7 @@ contains
     write(*,"(A,f15.12,A,f15.12)")"Density Error:",abs(naverage-nread),'/',nerror
     print*,""
     if(abs(naverage-nread)>nerror)convergence=.false.
-    call splot("muVSiter.data",iloop,xmu,abs(naverage-nread),append=.true.)
+    call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
   end subroutine search_mu
 
   !   !+------------------------------------------------------------------+
