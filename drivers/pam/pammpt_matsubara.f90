@@ -10,7 +10,7 @@ module COMMON
   USE DMFT_IPT
   implicit none
   !Put here vars in common with the BROYDN function
-  real(8)                :: xmu0,n,n0
+  real(8)                :: xmu0,n,n0,zd,zp
   type(matsubara_gf)     :: fg,fg0,fgp
   complex(8),allocatable :: sigma(:),sigmap(:)
   complex(8),allocatable :: gamma(:)
@@ -95,11 +95,11 @@ program pammpt
      sigma=weight*sigma + (1.d0-weight)*sold
      sold=sigma
      converged=check_convergence(sigma,eps_error,Nsuccess,Nloop)
-     call splot("ndVSiloop.ipt",iloop,2.d0*n,append=TT)
-     call splot("npVSiloop.ipt",iloop,np,append=TT)
-     call splot("ntotVSiloop.ipt",iloop,ntot,append=TT)
+     zd=1.d0/(1.d0+abs(dimag(Sigma(1))/wm(1)))
+     zp=1.d0/(1.d0+abs(dimag(Sigmap(1))/wm(1)))
+     call splot("observables.ipt",xmu,u,beta,dble(iloop),n,np,ntot,zd,zp,append=TT)
   enddo
-
+  call splot("observables_last.ipt",xmu,u,vpd,beta,n,np,ntot,zd,zp,append=printf)
   call splot("nd.np.ntot.ipt",n,np,ntot,append=TT)
   call splot("Sigma_iw.ipt",wm,sigma,append=printf)
   call splot("Sigmap_iw.ipt",wm,sigmap,append=printf)

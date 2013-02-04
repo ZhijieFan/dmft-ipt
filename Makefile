@@ -1,12 +1,8 @@
 #########################################################################
 include sfmake.inc
 #########################################################################
-#EXE=hmipt_matsubara_2dsquare_noHF_upm
-EXE=hmipt_matsubara
-#EXE=pammpt_matsubara_fixdens
-#EXE=hmipt_keldysh_2dsquare
-
-DIR=./drivers/hm
+EXE=ahmipt_real
+DIR=./drivers/ahm
 DIREXE= $(HOME)/.bin
 
 .SUFFIXES: .f90 

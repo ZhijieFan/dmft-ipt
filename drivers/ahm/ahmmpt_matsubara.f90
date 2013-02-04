@@ -8,10 +8,10 @@ program hmmpt_matsubara
   USE DMFT_IPT
   USE IOTOOLS
   implicit none
-  integer                         :: i,ik,esp,Lk,M
+  integer                         :: i,ik,esp,Lk,M,iloop
   logical                         :: converged,check1,check2,check
   complex(8)                      :: zeta,cdet
-  real(8)                         :: n,delta,n0,delta0,w
+  real(8)                         :: n,delta,n0,delta0,w,dtau
   !tails
   real(8),dimension(2) :: mues
 

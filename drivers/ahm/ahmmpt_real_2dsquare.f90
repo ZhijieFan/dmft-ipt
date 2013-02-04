@@ -5,13 +5,11 @@
 !     AUTHORS  : Adriano Amaricci & Antonio Privitera
 !########################################################
 program ahmmpt
-  ! USE IPT_VARS_GLOBAL
-  ! USE MPT_SC_FUNX_SOPT
   USE DMFT_IPT
   USE IOTOOLS
-
+  USE SQUARE_LATTICE
   implicit none
-  integer                :: i,ik,Lk
+  integer                :: i,ik,Lk,iloop
   logical                :: converged
   real(8)                :: adummy
   logical                :: check1,check2,check
@@ -25,21 +23,32 @@ program ahmmpt
   !
   real(8),allocatable    :: wt(:),epsik(:),wr(:)
 
+
+  include "revision.inc"
+  call version(revision)
   call read_input("inputIPT.in")
 
+  
+
   print*,"we are actually using",L,"frequencies"
-  allocate(wr(-L:L))
-  wr = linspace(-wmax,wmax,2*L+1,mesh=fmesh)
+  allocate(wr(L))
+  wr = linspace(-wmax,wmax,L,mesh=fmesh)
   print*,"|omegamax|",wr(L)
 
-  allocate(fg(2,-L:L),sigma(2,-L:L))
-  allocate(wf0(2,-L:L),calG(2,-L:L))
-  allocate(sold(2,-L:L),zeta(-L:L))
+  allocate(fg(2,L),sigma(2,L))
+  allocate(wf0(2,L),calG(2,L))
+  allocate(sold(2,L),zeta(L))
 
-  Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
-  call bethe_lattice(wt,epsik,Lk,D=1.d0)
+
+  !build square lattice structure:
+  Lk   = square_lattice_dimension(Nx)
+  allocate(wt(Lk),epsik(Lk))
+  wt   = square_lattice_structure(Lk,Nx)
+  epsik= square_lattice_dispersion_array(Lk,ts)
+
 
   call get_initial_sigma
+
 
   iloop=0 ; converged=.false.
   do while (.not.converged)
@@ -48,33 +57,32 @@ program ahmmpt
 
      fg=zero
      zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
-     do i=-L,L
+     do i=1,L
         zeta1 = zeta(i)
-        zeta2 = conjg(zeta(-i))
+        zeta2 = conjg(zeta(L+1-i))
         do ik=1,Lk
-           det     = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,-i))*sigma(2,i)              ! versione di BAUER
+           det     = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
            fg(1,i) =fg(1,i) + wt(ik)*(zeta2-epsik(ik))/det
-           fg(2,i) =fg(2,i) - wt(ik)*conjg(sigma(2,-i))/det                                 ! versione di BAUER
+           fg(2,i) =fg(2,i) - wt(ik)*conjg(sigma(2,L+1-i))/det
         enddo
      enddo
 
-     n    = -sum(aimag(fg(1,:))*fermi(wr,beta))*fmesh/pi ! densita' per spin
-     delta= -(u*sum(aimag(fg(2,:))*fermi(wr,beta))*fmesh/pi) 
+     n    = -sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi ! densita' per spin
+     delta= -(u*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi) 
 
 
      !Hartree corrected WF is: xmu=xmu0
      !\tilde{\calG0} = [G^-1 + Sigma - \Sigma_HFB]^-1
-     do i=-L,L
-        det     = fg(1,i)*conjg(fg(1,-i)) + conjg(fg(2,-i))*fg(2,i)          !! versione di BAUER
-
-        wf0(1,i)= conjg(fg(1,-i))/det  + sigma(1,i)   +  u*(n-0.5d0) ! versione vecchia particle-hole doppio segno sbagliato [ora corretto]
-        wf0(2,i)= fg(2,i)/det          + conjg(sigma(2,-i))   + delta     !! versione di BAUER
+     do i=1,L
+        det     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
+        wf0(1,i)= conjg(fg(1,L+1-i))/det  + sigma(1,i)   +  u*(n-0.5d0)
+        wf0(2,i)= fg(2,i)/det       + conjg(sigma(2,L+1-i))   + delta
      end do
 
-     do i=-L,L
-        det      =  wf0(1,i)*conjg(wf0(1,-i)) + conjg(wf0(2,-i))*wf0(2,i)   !! versione di BAUER
-        calG(1,i)=  conjg(wf0(1,-i))/det
-        calG(2,i)=  conjg(wf0(2,-i))/det     !! versione di BAUER
+     do i=1,L
+        det      =  wf0(1,i)*conjg(wf0(1,L+1-i)) + conjg(wf0(2,L+1-i))*wf0(2,i)
+        calG(1,i)=  conjg(wf0(1,L+1-i))/det
+        calG(2,i)=  conjg(wf0(2,L+1-i))/det
      end do
 
      n0    =  -sum(aimag(calG(1,:))*fermi(wr,beta))*fmesh/pi
@@ -95,7 +103,7 @@ program ahmmpt
      sigma = weight*sigma + (1.d0-weight)*sold ; sold=sigma
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
 
-     ! if(nread/=0.d0)call search_mu(converged)
+     if(nread/=0.d0)call search_mu(converged)
 
      call splot("nVSiloop.ipt",iloop,n,append=TT)
      call splot("deltaVSiloop.ipt",iloop,delta,append=TT)
@@ -131,32 +139,32 @@ program ahmmpt
 
 contains 
 
-  ! subroutine search_mu(convergence)
-  !   integer, save         ::nindex
-  !   integer               ::nindex1
-  !   real(8)               :: naverage,ndelta1
-  !   logical,intent(inout) :: convergence
-  !   naverage=n
-  !   nindex1=nindex
-  !   ndelta1=ndelta
-  !   if((naverage >= nread+nerror))then
-  !      nindex=-1
-  !   elseif(naverage <= nread-nerror)then
-  !      nindex=1
-  !   else
-  !      nindex=0
-  !   endif
-  !   if(nindex1+nindex==0)then !avoid loop forth and back
-  !      ndelta=real(ndelta1/2.d0,8) !decreasing the step
-  !      xmu=xmu+real(nindex,8)*ndelta
-  !   else
-  !      ndelta=ndelta1
-  !      xmu=xmu+real(nindex,8)*ndelta
-  !   endif
-  !   write(*,"(A,2f15.12,A,f15.12,A,I3,f15.12)")"mu,n=",xmu,naverage,"/",nread,"| ",nindex,ndelta
-  !   if(abs(naverage-nread)>nerror)convergence=.false.
-  !   call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
-  ! end subroutine search_mu
+  subroutine search_mu(convergence)
+    integer, save         ::nindex
+    integer               ::nindex1
+    real(8)               :: naverage,ndelta1
+    logical,intent(inout) :: convergence
+    naverage=n
+    nindex1=nindex
+    ndelta1=ndelta
+    if((naverage >= nread+nerror))then
+       nindex=-1
+    elseif(naverage <= nread-nerror)then
+       nindex=1
+    else
+       nindex=0
+    endif
+    if(nindex1+nindex==0)then !avoid loop forth and back
+       ndelta=real(ndelta1/2.d0,8) !decreasing the step
+       xmu=xmu+real(nindex,8)*ndelta
+    else
+       ndelta=ndelta1
+       xmu=xmu+real(nindex,8)*ndelta
+    endif
+    write(*,"(A,2f15.12,A,f15.12,A,I3,f15.12)")"mu,n=",xmu,naverage,"/",nread,"| ",nindex,ndelta
+    if(abs(naverage-nread)>nerror)convergence=.false.
+    call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
+  end subroutine search_mu
 
 
   subroutine get_initial_sigma()

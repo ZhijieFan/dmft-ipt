@@ -105,7 +105,6 @@ program pammpt
      zp=1.d0/(1.d0+abs(dimag(Sigmap(1))/wm(1)))
      call splot("observables.ipt",xmu,u,beta,dble(iloop),n,np,ntot,zd,zp,append=TT)
   enddo
-
   call splot("observables_last.ipt",xmu,u,vpd,beta,n,np,ntot,zd,zp,append=printf)
   call splot("Sigma_iw.ipt",wm,sigma,append=printf)
   call splot("Sigmap_iw.ipt",wm,sigmap,append=printf)

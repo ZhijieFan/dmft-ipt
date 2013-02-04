@@ -9,7 +9,7 @@ program ahmmpt
   USE IOTOOLS
 
   implicit none
-  integer                :: i,ik,Lk
+  integer                :: i,ik,Lk,iloop
   logical                :: converged
   real(8)                :: adummy
   logical                :: check1,check2,check
@@ -25,7 +25,7 @@ program ahmmpt
 
   call read_input("inputIPT.in")
 
-  
+
 
   print*,"we are actually using",L,"frequencies"
   allocate(wr(L))
@@ -90,9 +90,9 @@ program ahmmpt
      !write(*,"(a10,2f10.6,a10,2f10.6)")"fg",summag,halfsummag,"calg0",summag0,halfsummag0
 
      write(*,"(4(f16.12))",advance="no"),n,n0,delta,delta0     
-
+     sold=sigma
      sigma =  solve_mpt_sc_sopt(calG,wr,n,n0,delta,delta0,L)
-     sigma = weight*sigma + (1.d0-weight)*sold ; sold=sigma
+     sigma = weight*sigma + (1.d0-weight)*sold
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
 
      if(nread/=0.d0)call search_mu(converged)
