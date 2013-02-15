@@ -1,8 +1,8 @@
 #########################################################################
 include sfmake.inc
 #########################################################################
-EXE=ahmipt_real
-DIR=./drivers/ahm
+EXE=ahmipt_keldysh
+DIR=./drivers
 DIREXE= $(HOME)/.bin
 
 .SUFFIXES: .f90 

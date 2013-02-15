@@ -28,7 +28,7 @@ program ahmmpt
   call version(revision)
   call read_input("inputIPT.in")
 
-  
+
 
   print*,"we are actually using",L,"frequencies"
   allocate(wr(L))
@@ -87,15 +87,6 @@ program ahmmpt
 
      n0    =  -sum(aimag(calG(1,:))*fermi(wr,beta))*fmesh/pi
      delta0=  -(u*sum(aimag(calG(2,:))*fermi(wr,beta))*fmesh/pi)
-
-
-     ! halfsummag=sum(-1.d0/pi*dimag(fg(1,-L:0))*fmesh)
-     ! summag=sum(-1.d0/pi*dimag(fg(1,:))*fmesh)
-
-     ! halfsummag0=sum(-1.d0/pi*dimag(calG(1,-L:0))*fmesh)
-     ! summag0=sum(-1.d0/pi*dimag(calG(1,:))*fmesh)
-
-     !write(*,"(a10,2f10.6,a10,2f10.6)")"fg",summag,halfsummag,"calg0",summag0,halfsummag0
 
      write(*,"(4(f16.12))",advance="no"),n,n0,delta,delta0     
 

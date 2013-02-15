@@ -19,6 +19,8 @@ program hmipt
   !real(8),allcoatable    :: t(:)
   !type(keldysh_equilibrium_gf) :: fg0k,sk
 
+  include "revision.inc"
+  call version(revision)
   call read_input("inputIPT.in")
   allocate(fg(L))
   allocate(sigma(L))
