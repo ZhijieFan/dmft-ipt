@@ -51,6 +51,7 @@ module IPT_VARS_GLOBAL
   USE FFTGF
   USE INTEGRATE
   USE TOOLS
+  USE FUNCTIONS
   implicit none
 
   !Size of the problem: some parameters:

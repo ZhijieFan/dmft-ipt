@@ -1,7 +1,7 @@
 #########################################################################
 include sfmake.inc
 #########################################################################
-EXE=ahmipt_keldysh
+EXE=ahmipt_real
 DIR=./drivers
 DIREXE= $(HOME)/.bin
 
@@ -24,30 +24,30 @@ all: FLAG=$(STD)
 all: version $(OBJS)
 	@echo " ........... compile: optimized ........... "
 	@echo $(VER)
-	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(ARGS)
+	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)_$(BRANCH) $(ARGS)
 	@echo " ...................... done .............................. "
 	@echo ""
-	@echo "created" $(DIREXE)/$(EXE)
+	@echo "created" $(DIREXE)/$(EXE)_$(BRANCH)
 
 #================OPTIMIZED COMPILATION====================================
 opt: FLAG=$(OPT)
 opt: 	version $(OBJS)
 	@echo " ........... compile: optimized ........... "
 	@echo $(VER)
-	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(ARGS)
+	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)_$(BRANCH) $(ARGS)
 	@echo " ...................... done .............................. "
 	@echo ""
-	@echo "created" $(DIREXE)/$(EXE)
+	@echo "created" $(DIREXE)/$(EXE)_$(BRANCH)
 
 
 #================DEBUGGIN COMPILATION=====================================
 debug: FLAG=$(DEB)
 debug: 	version $(OBJS)
 	@echo " ........... compile : debug   ........... "
-	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE) $(ARGS_DEB)
+	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)_$(BRANCH) $(ARGS_DEB)
 	@echo " ...................... done .............................. "
 	@echo ""
-	@echo "created" $(DIREXE)/$(EXE)
+	@echo "created" $(DIREXE)/$(EXE)_$(BRANCH)
 
 
 .f90.o:	
