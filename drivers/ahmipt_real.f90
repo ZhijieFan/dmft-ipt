@@ -23,20 +23,20 @@ program hmipt
   call version(revision)
   call read_input("inputIPT.in")
 
+  allocate(wr(L))
+  wr = linspace(-wmax,wmax,L,mesh=fmesh)
+
   allocate(fg(2,L),sigma(2,L))
   allocate(wf0(2,L),calG(2,L))
   allocate(zeta(L),sold(2,L))
 
-  allocate(wr(L))
-  wr = linspace(-wmax,wmax,L,mesh=fmesh)
-
-  Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
-  call bethe_lattice(wt,epsik,Lk,2.d0*ts)
+  D=2.d0*ts;Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
+  call bethe_lattice(wt,epsik,Lk,D)
 
   call get_initial_sigma
 
 
-  iloop=0    ; converged=.false.
+  iloop=0 ; converged=.false.
   do while (.not.converged)
      iloop=iloop+1
      write(*,"(A,i5)",advance="no")"DMFT-loop",iloop

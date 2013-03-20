@@ -23,11 +23,10 @@ program ahmmpt
   !
   real(8),allocatable    :: wt(:),epsik(:),wr(:)
 
+  include "revision.inc"
+  call version(revision)
   call read_input("inputIPT.in")
 
-
-
-  print*,"we are actually using",L,"frequencies"
   allocate(wr(L))
   wr = linspace(-wmax,wmax,L,mesh=fmesh)
   print*,"|omegamax|",wr(L)

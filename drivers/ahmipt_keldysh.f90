@@ -142,7 +142,7 @@ program hmipt
      sigma(2,:) = -delta + sk(2)%ret%w
 
      write(*,"(2f14.9)",advance="no")2.d0*n,delta
-     ! sold=sigma
+     !sold=sigma
      ! sigma =  solve_ipt_sc_sopt(calG(1:2,:),wr,delta,L)
      ! sigma = weight*sigma + (1.d0-weight)*sold
      !converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
@@ -154,11 +154,11 @@ program hmipt
      call splot("Self_realw.ipt",wr,sigma(2,:),append=.true.)
      call splot("calG0_realw.ipt",wr,calG(1,:),append=.true.)
      call splot("calF0_realw.ipt",wr,calG(2,:),append=.true.)
-     call splot("observables.ipt",xmu,u,n,delta,beta,dble(iloop),append=.true.)
+     call splot("observables.ipt",vbias,delta,xmu,u,n,beta,dble(iloop),append=.true.)
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
   enddo
 
-  call splot("observables.last",xmu,u,n,delta,beta,dble(iloop),append=printf)
+  call splot("observables.last",vbias,delta,xmu,u,n,delta,beta,dble(iloop),append=printf)
   call splot("DOS.last",wr,-dimag(fg(1,:))/pi,append=printf)
   call splot("G_realw.last",wr,fg(1,:),append=printf)
   call splot("F_realw.last",wr,fg(2,:),append=printf)
