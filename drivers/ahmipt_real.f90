@@ -25,7 +25,7 @@ program hmipt
 
   allocate(wr(L))
   wr = linspace(-wmax,wmax,L,mesh=fmesh)
-
+  call msg('dw='//txtfy(fmesh))
   allocate(fg(2,L),sigma(2,L))
   allocate(wf0(2,L),calG(2,L))
   allocate(zeta(L),sold(2,L))

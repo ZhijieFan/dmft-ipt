@@ -147,18 +147,18 @@ program hmipt
      ! sigma = weight*sigma + (1.d0-weight)*sold
      !converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
 
-     call splot("DOS.ipt",wr,-dimag(fg(1,:))/pi,append=.true.)
-     call splot("G_realw.ipt",wr,fg(1,:),append=.true.)
-     call splot("F_realw.ipt",wr,fg(2,:),append=.true.)
-     call splot("Sigma_realw.ipt",wr,sigma(1,:),append=.true.)
-     call splot("Self_realw.ipt",wr,sigma(2,:),append=.true.)
-     call splot("calG0_realw.ipt",wr,calG(1,:),append=.true.)
-     call splot("calF0_realw.ipt",wr,calG(2,:),append=.true.)
+     ! call splot("DOS.ipt",wr,-dimag(fg(1,:))/pi,append=.true.)
+     ! call splot("G_realw.ipt",wr,fg(1,:),append=.true.)
+     ! call splot("F_realw.ipt",wr,fg(2,:),append=.true.)
+     ! call splot("Sigma_realw.ipt",wr,sigma(1,:),append=.true.)
+     ! call splot("Self_realw.ipt",wr,sigma(2,:),append=.true.)
+     ! call splot("calG0_realw.ipt",wr,calG(1,:),append=.true.)
+     ! call splot("calF0_realw.ipt",wr,calG(2,:),append=.true.)
      call splot("observables.ipt",vbias,delta,xmu,u,n,beta,dble(iloop),append=.true.)
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
   enddo
 
-  call splot("observables.last",vbias,delta,xmu,u,n,delta,beta,dble(iloop),append=printf)
+  call splot("observables.last",vbias,delta,xmu,u,n,beta,dble(iloop),append=printf)
   call splot("DOS.last",wr,-dimag(fg(1,:))/pi,append=printf)
   call splot("G_realw.last",wr,fg(1,:),append=printf)
   call splot("F_realw.last",wr,fg(2,:),append=printf)
