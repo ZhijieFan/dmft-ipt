@@ -10,7 +10,7 @@ program hmipt
   implicit none
   integer    :: i,ik,Lk,iloop,Lm
   logical    :: converged
-  complex(8) :: det,zeta1,zeta2
+  complex(8) :: det,zeta1,zeta2,x1,x2
   real(8)    :: delta,n,A,B,nf,nfL,nfR
   !
   complex(8),allocatable          :: sigma(:,:),fg(:,:),wf0(:,:),calG(:,:),sold(:,:)
@@ -48,7 +48,7 @@ program hmipt
   t   = linspace(-dt*L/2,dt*L/2,L+1,mesh=dt)
 
   Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
-  call bethe_lattice(wt,epsik,Lk,2.d0*ts)
+  D=2.d0*ts;call bethe_lattice(wt,epsik,Lk,D)
 
   call get_initial_sigma
 
@@ -63,11 +63,15 @@ program hmipt
      do i=1,L
         zeta1 = zeta(i)
         zeta2 = conjg(zeta(L+1-i))
-        do ik=1,Lk
-           det = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
-           fg(1,i)=fg(1,i) + wt(ik)*(zeta2-epsik(ik))/det
-           fg(2,i)=fg(2,i) - wt(ik)*conjg(sigma(2,L+1-i))/det
-        enddo
+        x1 = 0.5d0*((zeta1+zeta2) + sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+        x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+        fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+        fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+        ! do ik=1,Lk
+        !    det = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
+        !    fg(1,i)=fg(1,i) + wt(ik)*(zeta2-epsik(ik))/det
+        !    fg(2,i)=fg(2,i) - wt(ik)*conjg(sigma(2,L+1-i))/det
+        ! enddo
      enddo
      delta=-u*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
      n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
