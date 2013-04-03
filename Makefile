@@ -2,8 +2,9 @@
 include sfmake.inc
 #########################################################################
 EXE=ahmipt_keldysh
-#EXE=ahmipt_real
+#EXE=ahmipt_matsubara
 #EXE=hmipt_keldysh_2dsquare
+#EXE=hmipt_real
 DIR=./drivers
 DIREXE= $(HOME)/.bin
 
