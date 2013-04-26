@@ -6,7 +6,6 @@
 !     AUTHORS  : Adriano Amaricci
 !########################################################
 module COMMON
-  USE BROYDEN
   USE COMMON_VARS
   implicit none
   !Put here vars in common with the BROYDN function
@@ -24,15 +23,31 @@ function funcv(x)
   real(8),dimension(:),intent(in)  ::  x
   real(8),dimension(size(x))       ::  funcv
   xmu0=x(1)
-  fg0 = one/(cmplx(wr,eps) + xmu0 - ed0 - gamma -U*(n-0.5d0))
-  n0=sum(fermi(wr,beta)*aimag(fg0))/sum(aimag(fg0))
+  fg0 = one/(cmplx(wr,eps,8) + xmu0 - ed0 - gamma -U*(n-0.5d0))
+  n0=sum(fermi(wr,beta)*dimag(fg0))/sum(dimag(fg0))
   funcv(1)=n-n0
-  write(*,"(4(f13.9))")n,n0,xmu0
+  !write(*,"(4(f13.9))")n,n0,xmu0
 end function funcv
+
+
+subroutine gamma_func(in,x,fvec,iflag)
+  USE COMMON
+  USE DMFT_IPT
+  implicit none
+  integer               :: in ,iflag
+  real(8),dimension(in) ::  x
+  real(8),dimension(in) ::  fvec
+  xmu0=x(1)
+  fg0 = one/(cmplx(wr,eps,8) + xmu0 - ed0 - gamma -U*(n-0.5d0))
+  n0=sum(fermi(wr,beta)*dimag(fg0))/sum(dimag(fg0))
+  fvec(1)=n-n0
+  !write(*,"(3(f13.9))")n,n0,xmu0
+end subroutine gamma_func
 
 
 program pammpt
   USE DMFT_IPT
+  USE ZEROS
   USE COMMON
   USE IOTOOLS
   implicit none
@@ -42,7 +57,7 @@ program pammpt
   complex(8)             :: zeta,alpha
   real(8)                :: np,gzero,gmu,ntot,shift
   complex(8),allocatable :: sold(:)
-
+  external gamma_func
   call read_input("inputIPT.in")
 
   allocate(fg(1:L),sigma(1:L),fg0(1:L),gamma(1:L))
@@ -77,8 +92,8 @@ program pammpt
         fgp(i) = gfbether(wr(i),zeta,D)
         fg(i) = one/alpha + Vpd**2/alpha**2*fgp(i)
      enddo
-     n  = sum(fermi(wr,beta)*aimag(fg))/sum(aimag(fg))
-     np = 2.d0*sum(aimag(fgp)*fermi(wr,beta))/sum(aimag(fgp))
+     n  = sum(fermi(wr,beta)*dimag(fg))/sum(dimag(fg))
+     np = 2.d0*sum(dimag(fgp)*fermi(wr,beta))/sum(dimag(fgp))
      ntot = np+2.d0*n
 
      !Get the hybridization functions: \Gamma(w+xmu)
@@ -86,21 +101,23 @@ program pammpt
 
      !Fix the xmu0 w/ condition n0=n
      x(1)=xmu0
-     call broydn(x,check)
+     !call broydn(x,check)
+     call fsolve(gamma_func,x,tol=1.d-15)
      xmu0=x(1)
 
      sigma= solve_mpt_sopt(fg0,wr,n,n0,xmu0)
      sigma=weight*sigma + (1.d0-weight)*sold
      sold=sigma
      converged=check_convergence(sigma,eps_error,Nsuccess,Nloop)
-     call search_mu(converged)
+     if(nread/=0.d0)call search_mu(converged)
+     if(iloop>nloop)converged=.true.
      call splot("ndVSiloop.ipt",iloop,2.d0*n,append=TT)
      call splot("npVSiloop.ipt",iloop,np,append=TT)
      call splot("ntotVSiloop.ipt",iloop,ntot,append=TT)
   enddo
 
-  call splot("observables_last.ipt",xmu,u,vpd,beta,n,np,ntot,append=printf) 
-  call splot("DOS.ipt",wr,-aimag(fg)/pi,-aimag(fgp)/pi,append=printf)
+  call splot("observables_last.ipt",xmu,u,vpd,beta,2.d0*n,np,ntot,append=printf) 
+  call splot("DOS.ipt",wr,-dimag(fg)/pi,-dimag(fgp)/pi,append=printf)
   call splot("Sigma_realw.ipt",wr,sigma,append=printf)
   call splot("Sigmap_realw.ipt",wr,sigmap,append=printf)
   call splot("G_realw.ipt",wr,fg,append=printf)
@@ -117,7 +134,7 @@ contains
     integer               ::nindex1
     real(8)               :: naverage,ndelta1
     logical,intent(inout) :: convergence
-    naverage=ntot
+    naverage=ntot!2.d0*n
     nindex1=nindex
     ndelta1=ndelta
     if((naverage >= nread+nerror))then

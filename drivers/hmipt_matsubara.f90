@@ -46,11 +46,11 @@ program hmipt_matsuara
      sigma= solve_ipt_matsubara(fg0)
      converged=check_convergence(fg0,eps_error,nsuccess,nloop)
      z=1.d0 - dimag(sigma(1))/wm(1);z=1.d0/z
-     call splot("observables.ipt",xmu,u,beta,dble(iloop),n,z,append=.true.)
+     call splot("observables.ipt",dble(iloop),u,z,beta,xmu,append=.true.)
   enddo
   call splot("G_iw.ipt",wm,fg%iw,append=printf)
   call splot("G0_iw.ipt",wm,fg0,append=printf)
   call splot("Sigma_iw.ipt",wm,sigma,append=printf)
   call splot("Sigma.restart",sigma)
-  call splot("observables_last.ipt",xmu,u,beta,n,z,append=printf)
+  call splot("observables_last.ipt",u,z,beta,xmu,append=printf)
 end program hmipt_matsuara

@@ -22,15 +22,15 @@ program hmipt
   type(keldysh_equilibrium_gf)    :: fg0k(2),sk(2),calG11,calG22,calF12,calF21
   !
   real(8) :: vbias
-  logical :: type
+  logical :: type,thermo
 
   include "revision.inc"
   call version(revision)
+
   call read_input("inputIPT.in")
   call parse_cmd_variable(vbias,'VBIAS',default=0.d0)
-  call parse_cmd_variable(p,"P",default=20)
-  call parse_cmd_variable(q,"Q",default=100)
   call parse_cmd_variable(type,"TYPE",default=.false.)
+  call parse_cmd_variable(thermo,"thermo",default=.false.)
 
   allocate(fg(2,L))
   allocate(sigma(2,L))
@@ -69,8 +69,8 @@ program hmipt
         fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
         fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
      enddo
-     delta=-u*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
-     n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
+     delta=-u*trapz(fmesh,dimag(fg(2,:))*istep(wr(:)))/pi
+     n    =-trapz(fmesh,dimag(fg(1,:))*istep(wr(:)))/pi
      !GET Matsubara functions (not working well)
      Lm=Nx**2
      allocate(wrx(Lm),fgm(2,Lm),sm(2,Lm))
@@ -107,14 +107,9 @@ program hmipt
         x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
         fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
         fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
-        ! do ik=1,Lk
-        !    det = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
-        !    fg(1,i)=fg(1,i) + wt(ik)*(zeta2-epsik(ik))/det
-        !    fg(2,i)=fg(2,i) - wt(ik)*conjg(sigma(2,L+1-i))/det
-        ! enddo
      enddo
-     delta=-u*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
-     n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
+     delta=-u*trapz(fmesh,dimag(fg(2,:))*istep(wr))/pi
+     n=-trapz(fmesh,dimag(fg(1,:))*istep(wr))/pi
 
      !GET THE WEISS FIELD \calG0^-1(w)
      ! wf(1)=calG0^-1 = G*(-w)/(G(w)G*(-w) + F(w)F(-w)) + Sigma(w)
@@ -135,8 +130,8 @@ program hmipt
      do i=1,L
         A = -dimag(calG(1,i))/pi
         B = -dimag(calG(2,i))/pi
-        nfL= fermi(wr(i)-vbias/2.d0,beta)
-        nfR= fermi(wr(i)+vbias/2.d0,beta)
+        nfL= istep(wr(i)-vbias/2.d0)!fermi(wr(i)-vbias/2.d0,beta)
+        nfR= istep(wr(i)+vbias/2.d0)!fermi(wr(i)+vbias/2.d0,beta)
         nf= (nfL+nfR)/2.d0
         fg0k(1)%less%w(i) = pi2*xi*nf*A
         fg0k(1)%gtr%w(i)  = pi2*xi*(nf-1.d0)*A
@@ -189,25 +184,15 @@ program hmipt
   enddo
 
   call splot("observables.last",vbias,delta,xmu,u,n,beta,dble(iloop))
-  !call splot("DOS.last",wr,-dimag(fg(1,:))/pi)
   call splot("Sigma_realw.restart",wr,sigma(1,:))
   call splot("Self_realw.restart",wr,sigma(2,:))
-  ! call splot("G_realw.last",wr,fg(1,:))
-  ! call splot("F_realw.last",wr,fg(2,:))
-  ! call splot("calG0_realw.last",wr,calG(1,:))
-  ! call splot("calF0_realw.last",wr,calG(2,:))
-
-
 
 
   !REDUCE size for printing.
-  !Lm=2*p*q+1
   Lm=Nx**2
   wmax=12.d0
   allocate(wrx(Lm),dummy(2,Lm))
   wrx = linspace(-wmax,wmax,Lm)
-  !wrx = upminterval(-wmax,wmax,0.d0,P,Q,type=1
-
 
   call cubic_spline(fg(1,:),wr(:),dummy(1,:),wrx)
   call splot("DOS.last",wrx,-dimag(dummy(1,:))/pi)
@@ -219,8 +204,8 @@ program hmipt
 
   call cubic_spline(fg(1,:),wr(:),dummy(1,:),wrx)
   call cubic_spline(fg(2,:),wr(:),dummy(2,:),wrx)
-  call splot("G_realw_realw.last",wrx,dummy(1,:))
-  call splot("F_realw_realw.last",wrx,dummy(2,:))
+  call splot("G_realw.last",wrx,dummy(1,:))
+  call splot("F_realw.last",wrx,dummy(2,:))
 
 
   call cubic_spline(calG(1,:),wr(:),dummy(1,:),wrx)
@@ -230,54 +215,45 @@ program hmipt
 
   deallocate(wrx,dummy)
 
-  !GET Matsubara functions (not working well)
-  Lm=4096*4
-  allocate(wrx(Lm),fgm(2,Lm),sm(2,Lm))
-  wrx = pi/beta*real(2*arange(1,Lm)-1,8)
-  call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
-  call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
-  call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
-  call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
-  fgm(2,:)=dreal(fgm(2,:))
-  sm(2,:)=dreal(sm(2,:))-delta
-  call splot("G_iw.last",wrx,fgm(1,:))
-  call splot("F_iw.last",wrx,fgm(2,:))
-  call splot("Sigma_iw.last",wrx,sm(1,:))
-  call splot("Self_iw.last",wrx,sm(2,:))
-  Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk))
-  call bethe_lattice(wt,epsik,Lk,D)
-  call get_sc_internal_energy(Lm,wrx,fgm,sm)
-
-
-  ! allocate(dos(2,L),en(L))
-
-
-  ! Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk))
-  ! call bethe_lattice(wt,epsik,Lk,D)
-  ! zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
-  ! do ik=1,Lk
-  !    do i=1,L
-  !       zeta1 = zeta(i)
-  !       zeta2 = conjg(zeta(L+1-i))
-  !       det = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
-  !       calG(1,i)=wt(ik)*(zeta2-epsik(ik))/det
-  !       calG(2,i)=-wt(ik)*conjg(sigma(2,L+1-i))/det
-  !    enddo
-  !    dos(1,:)=-dimag(calg(1,:))/pi
-  !    dos(2,:)=-dimag(calg(2,:))/pi
-  !    nk(ik)=sum(dos(1,:)*fermi(wr,beta))*fmesh
-  !    write(100,*)epsik(ik),nk(ik)
-  ! enddo
-  ! dos(1,:)=-dimag(fg(1,:))/pi
-  ! dos(2,:)=-dimag(fg(2,:))/pi
-
-
-  ! en=linspace(-D,D,L,mesh=fmesh)
-  ! ekin = sum(en*(dos(1,:)+dos(2,:))*fermi(en,beta))*fmesh
-  ! print*,ekin
-
+  if(thermo)then
+     !GET Matsubara functions (not working well: aka only at large enough temperature, 
+     !because of the finite broadening you can not resolve infinitely small energies/temp)
+     Lm=4096*4
+     allocate(wrx(Lm),fgm(2,Lm),sm(2,Lm))
+     wrx = pi/beta*real(2*arange(1,Lm)-1,8)
+     call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
+     call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
+     call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
+     call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
+     fgm(2,:)=dreal(fgm(2,:))
+     sm(2,:)=dreal(sm(2,:))-delta
+     call splot("G_iw.last",wrx,fgm(1,:))
+     call splot("F_iw.last",wrx,fgm(2,:))
+     call splot("Sigma_iw.last",wrx,sm(1,:))
+     call splot("Self_iw.last",wrx,sm(2,:))
+     Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk))
+     call bethe_lattice(wt,epsik,Lk,D)
+     call get_sc_internal_energy(Lm,wrx,fgm,sm)
+  endif
 
 contains 
+
+  elemental function istep(x) result(out)!,beta) result(out)
+    real(8),intent(in) :: x!, beta 
+    real(8)            :: out
+    ! if(x*beta > 100.d0)then
+    !    fermi=0.d0
+    !    return
+    ! endif
+    ! fermi = 1.d0/(1.d0+exp(beta*x))
+    if(x < 0.d0) then
+       out = 1.0d0
+    elseif(x==0.d0)then
+       out = 0.50d0
+    else
+       out = 0.0d0
+    endif
+  end function istep
 
 
   subroutine get_initial_sigma()

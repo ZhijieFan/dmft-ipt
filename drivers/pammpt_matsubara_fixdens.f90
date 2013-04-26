@@ -26,7 +26,7 @@ function funcv(x)
   xmu0=x(1)
   fg0%iw = one/(xi*wm + xmu0 - ed0 - gamma - u*(n-0.5d0))
   call fftgf_iw2tau(fg0%iw,fg0%tau,beta)
-  n0=-real(fg0%tau(L))
+  n0=-dreal(fg0%tau(L))
   funcv(1)=n-n0
   write(*,"(3(f13.9))")n,n0,xmu0
 end function funcv
@@ -103,7 +103,7 @@ program pammpt
      call search_mu(converged)
      zd=1.d0/(1.d0+abs(dimag(Sigma(1))/wm(1)))
      zp=1.d0/(1.d0+abs(dimag(Sigmap(1))/wm(1)))
-     call splot("observables.ipt",xmu,u,beta,dble(iloop),n,np,ntot,zd,zp,append=TT)
+     call splot("observables.ipt",xmu,u,beta,1.d0*iloop,n,np,ntot,zd,zp,append=.true.)
   enddo
   call splot("observables_last.ipt",xmu,u,vpd,beta,n,np,ntot,zd,zp,append=printf)
   call splot("Sigma_iw.ipt",wm,sigma,append=printf)

@@ -13,14 +13,14 @@ program hmipt
   allocate(fg(L),sigma(L),fg0(L),wr(L),sold(L))
 
   wr=linspace(-wmax,wmax,L)
-
+  
   sigma=zero ; iloop=0 ; converged=.false.       
   do while (.not.converged)
      iloop=iloop+1
      write(*,"(A,i5)",advance="no")"DMFT-loop",iloop
      do i=1,L
         zeta  = cmplx(wr(i),eps) - sigma(i)
-        fg(i) = gfbether(wr(i),zeta,1.d0)
+        fg(i) = gfbether(wr(i),zeta,2.d0*ts)
      enddo
      fg0 = one/(one/fg + sigma)
      sold = sigma
