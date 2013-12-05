@@ -6,12 +6,15 @@
 !########################################################
 program ahmmpt
   USE DMFT_IPT
+  USE SCIFOR_VERSION
   USE IOTOOLS
-  USE SQUARE_LATTICE
+  USE FUNCTIONS
+  USE INTEGRATE
+  !USE SQUARE_LATTICE
   implicit none
   integer                :: i,ik,Lk,iloop
   logical                :: converged
-  real(8)                :: adummy
+  real(8)                :: adummy,wband,de
   logical                :: check1,check2,check
 
   complex(8)             :: zeta1,zeta2,det
@@ -41,10 +44,20 @@ program ahmmpt
 
 
   !build square lattice structure:
-  Lk   = square_lattice_dimension(Nx)
-  allocate(wt(Lk),epsik(Lk))
-  wt   = square_lattice_structure(Lk,Nx)
-  epsik= square_lattice_dispersion_array(Lk,ts)
+  ! Lk   = square_lattice_dimension(Nx)
+  ! allocate(wt(Lk),epsik(Lk))
+  ! wt   = square_lattice_structure(Lk,Nx)
+  ! epsik= square_lattice_dispersion_array(Lk,ts)
+  allocate(wt(L),epsik(L))
+  wband=4.d0*ts+0.1d0
+  epsik = linspace(-wband,wband,L,mesh=de)
+  do i=1,L
+     wt(i)=dens_2dsquare(epsik(i),ts)
+  enddo
+  wt=wt/trapz(de,wt)
+  call splot("DOS2d.ipt",epsik,wt)
+  wt = wt*de
+
 
 
   call get_initial_sigma
@@ -60,15 +73,15 @@ program ahmmpt
      do i=1,L
         zeta1 = zeta(i)
         zeta2 = conjg(zeta(L+1-i))
-        do ik=1,Lk
+        do ik=1,L
            det     = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
            fg(1,i) =fg(1,i) + wt(ik)*(zeta2-epsik(ik))/det
            fg(2,i) =fg(2,i) - wt(ik)*conjg(sigma(2,L+1-i))/det
         enddo
      enddo
 
-     n    = -sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi ! densita' per spin
-     delta= -(u*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi) 
+     n    = -trapz(fmesh,dimag(fg(1,:))*fermi(wr,beta))/pi!sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi ! densita' per spin
+     delta= -u*trapz(fmesh,dimag(fg(2,:))*fermi(wr,beta))/pi!(u*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi) 
 
 
      !Hartree corrected WF is: xmu=xmu0
@@ -85,8 +98,8 @@ program ahmmpt
         calG(2,i)=  conjg(wf0(2,L+1-i))/det
      end do
 
-     n0    =  -sum(aimag(calG(1,:))*fermi(wr,beta))*fmesh/pi
-     delta0=  -(u*sum(aimag(calG(2,:))*fermi(wr,beta))*fmesh/pi)
+     n0    =  -trapz(fmesh,dimag(calG(1,:))*fermi(wr,beta))/pi!-sum(imag(calG(1,:))*fermi(wr,beta))*fmesh/pi
+     delta0=  -u*trapz(fmesh,dimag(calG(2,:))*fermi(wr,beta))/pi!(u*sum(dimag(calG(2,:))*fermi(wr,beta))*fmesh/pi)
 
      write(*,"(4(f16.12))",advance="no"),n,n0,delta,delta0     
 
@@ -96,8 +109,8 @@ program ahmmpt
 
      if(nread/=0.d0)call search_mu(converged)
 
-     call splot("nVSiloop.ipt",iloop,n,append=TT)
-     call splot("deltaVSiloop.ipt",iloop,delta,append=TT)
+     call splot("nVSiloop.ipt",iloop,n,append=.true.)
+     call splot("deltaVSiloop.ipt",iloop,delta,append=.true.)
      call splot("DOS.ipt",wr,-aimag(fg(1,:))/pi,append=printf)
      call splot("G_realw.ipt",wr,fg(1,:),append=printf)
      call splot("F_realw.ipt",wr,fg(2,:),append=printf)
@@ -105,7 +118,7 @@ program ahmmpt
      call splot("Self_realw.ipt",wr,sigma(2,:),append=printf)
      call splot("calG0_realw.ipt",wr,calG(1,:),append=printf)
      call splot("calF0_realw.ipt",wr,calG(2,:),append=printf)
-     call splot("observables.ipt",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=printf)
+     call splot("observables.ipt",iloop,beta,xmu,u,n,n0,delta,delta0,append=printf)
   enddo
 
   !ndelta=0.01d0  !  serve per evitare che il deltan piccolissimo in uscita
@@ -118,14 +131,14 @@ program ahmmpt
 
   call close_file("nVSiloop.ipt")
   call close_file("deltaVSiloop.ipt")
-  call splot("DOS.last",wr,-aimag(fg(1,:))/pi,append=FF)
-  call splot("G_realw.last",wr,fg(1,:),append=FF)
-  call splot("F_realw.last",wr,fg(2,:),append=FF)
-  call splot("Sigma_realw.last",wr,sigma(1,:),append=FF)
-  call splot("Self_realw.last",wr,sigma(2,:),append=FF)
-  call splot("calG0_realw.last",wr,calG(1,:),append=FF)
-  call splot("calF0_realw.last",wr,calG(2,:),append=FF)
-  call splot("observables.last",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=printf)
+  call splot("DOS.last",wr,-aimag(fg(1,:))/pi,append=.false.)
+  call splot("G_realw.last",wr,fg(1,:),append=.false.)
+  call splot("F_realw.last",wr,fg(2,:),append=.false.)
+  call splot("Sigma_realw.last",wr,sigma(1,:),append=.false.)
+  call splot("Self_realw.last",wr,sigma(2,:),append=.false.)
+  call splot("calG0_realw.last",wr,calG(1,:),append=.false.)
+  call splot("calF0_realw.last",wr,calG(2,:),append=.false.)
+  call splot("observables.last",iloop,beta,xmu,u,n,n0,delta,delta0,append=.false.)
 
 
 contains 
@@ -135,7 +148,7 @@ contains
     integer               ::nindex1
     real(8)               :: naverage,ndelta1
     logical,intent(inout) :: convergence
-    naverage=n
+    naverage=2.d0*n
     nindex1=nindex
     ndelta1=ndelta
     if((naverage >= nread+nerror))then
@@ -145,13 +158,12 @@ contains
     else
        nindex=0
     endif
-    if(nindex1+nindex==0)then !avoid loop forth and back
-       ndelta=real(ndelta1/2.d0,8) !decreasing the step
-       xmu=xmu+real(nindex,8)*ndelta
+    if(nindex1+nindex==0.AND.nindex/=0)then !avoid loop forth and back
+       ndelta=ndelta1/2.d0
     else
        ndelta=ndelta1
-       xmu=xmu+real(nindex,8)*ndelta
     endif
+    xmu=xmu+real(nindex,8)*ndelta
     write(*,"(A,2f15.12,A,f15.12,A,I3,f15.12)")"mu,n=",xmu,naverage,"/",nread,"| ",nindex,ndelta
     if(abs(naverage-nread)>nerror)convergence=.false.
     call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)

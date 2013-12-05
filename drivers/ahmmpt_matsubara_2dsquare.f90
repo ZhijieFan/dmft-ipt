@@ -6,13 +6,16 @@
 !########################################################
 program hmmpt_2dsquare_matsubara
   USE DMFT_IPT
-  USE SQUARE_LATTICE
+  USE SCIFOR_VERSION
+  !USE SQUARE_LATTICE
+  USE FUNCTIONS
+  USE INTEGRATE
   USE IOTOOLS
   implicit none
-  integer                         :: i,ik,esp,Lk
+  integer                         :: i,ik,esp,Lk,iloop
   logical                         :: converged,check1,check2,check
   complex(8)                      :: zeta,cdet
-  real(8)                         :: n,delta,n0,delta0
+  real(8)                         :: n,delta,n0,delta0,dtau,wband,de
   !
   complex(8),allocatable          :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:)
   real(8),allocatable             :: fgt(:,:),fg0t(:,:)
@@ -23,13 +26,16 @@ program hmmpt_2dsquare_matsubara
 
   include "revision.inc"
   call version(revision)
+
   call read_input("inputIPT.in")
 
+  !allocate grids
   allocate(wm(L),tau(0:L))
   wm(:)  = pi/beta*real(2*arange(1,L)-1,8)
   tau(0:)= linspace(0.d0,beta,L+1,mesh=dtau)
 
-  !
+
+  !allocate functions
   allocate(fg(2,L),fgt(2,0:L))
   allocate(fg0(2,L),fg0t(2,0:L))
   allocate(sigma(2,L),calG(2,L))
@@ -37,16 +43,27 @@ program hmmpt_2dsquare_matsubara
   allocate(sconvergence(2*L))
 
 
-
   !build square lattice structure:
-  Lk   = square_lattice_dimension(Nx)
-  allocate(wt(Lk),epsik(Lk))
-  wt   = square_lattice_structure(Lk,Nx)
-  epsik= square_lattice_dispersion_array(Lk,ts)
-  call get_initial_sigma
-
+  !Lk   = square_lattice_dimension(Nx)
+  !allocate(wt(Lk),epsik(Lk))
+  !wt   = square_lattice_structure(Lk,Nx)
+  !epsik= square_lattice_dispersion_array(Lk,ts)
+  Lk=Nx
+  allocate(epsik(Lk),wt(Lk))
+  print*,"Using ",Lk," points for the e-integral"
+  wband=4.d0*ts+0.5d0
+  epsik = linspace(-wband,wband,Lk,mesh=de)
+  do i=1,Lk
+     wt(i)=dens_2dsquare(epsik(i),ts)
+  enddo
+  wt=wt/trapz(de,wt)
+  call splot("DOS2d.ipt",epsik,wt)
+  wt = wt*de
 
   iloop=0 ; converged=.false.
+
+  call get_initial_sigma
+
   do while (.not.converged)
      iloop=iloop+1
      write(*,"(A,i5)",advance="no")"DMFT-loop",iloop
@@ -88,9 +105,10 @@ program hmmpt_2dsquare_matsubara
      converged = check_convergence(sconvergence(:),eps=eps_error,N1=Nsuccess,N2=nloop)
 
      if(nread/=0.d0)call search_mu(converged)
+     if(iloop==nloop)converged=.true.
 
-     call splot("nVSiloop.ipt",iloop,n,append=TT)
-     call splot("deltaVSiloop.ipt",iloop,delta,append=TT)
+     call splot("nVSiloop.ipt",iloop,n,append=.true.)
+     call splot("deltaVSiloop.ipt",iloop,delta,append=.true.)
 
      !This stays here for the time being, until the code is bomb proof
      if(printf)then
@@ -104,34 +122,34 @@ program hmmpt_2dsquare_matsubara
         call splot("calF_tau.ipt",tau,fg0t(2,:),append=printf)
         call splot("Sigma_iw.ipt",wm,sigma(1,:),append=printf)
         call splot("Self_iw.ipt",wm,sigma(2,:),append=printf)
-        call splot("observables.ipt",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=printf)
+        call splot("observables.ipt",iloop,beta,xmu,u,n,n0,delta,delta0,append=printf)
      endif
   enddo
 
   call close_file("nVSiloop.ipt")
   call close_file("deltaVSiloop.ipt")
 
-  call splot("G_iw.last",wm,fg(1,:),append=FF)
-  call splot("F_iw.last",wm,fg(2,:),append=FF)
-  call splot("G_tau.last",tau,fgt(1,:),append=FF)
-  call splot("F_tau.last",tau,fgt(2,:),append=FF)
-  call splot("calG_iw.last",wm,calG(1,:),append=FF)
-  call splot("calF_iw.last",wm,calG(2,:),append=FF)
-  call splot("calG_tau.last",tau,fg0t(1,:),append=FF)
-  call splot("calF_tau.last",tau,fg0t(2,:),append=FF)
-  call splot("Sigma_iw.last",wm,sigma(1,:),append=FF)
-  call splot("Self_iw.last",wm,sigma(2,:),append=FF)
-  call splot("observables.last",xmu,u,n,n0,delta,delta0,beta,dble(iloop),append=FF)
+  call splot("G_iw.last",wm,fg(1,:),append=.false.)
+  call splot("F_iw.last",wm,fg(2,:),append=.false.)
+  call splot("G_tau.last",tau,fgt(1,:),append=.false.)
+  call splot("F_tau.last",tau,fgt(2,:),append=.false.)
+  call splot("calG_iw.last",wm,calG(1,:),append=.false.)
+  call splot("calF_iw.last",wm,calG(2,:),append=.false.)
+  call splot("calG_tau.last",tau,fg0t(1,:),append=.false.)
+  call splot("calF_tau.last",tau,fg0t(2,:),append=.false.)
+  call splot("Sigma_iw.last",wm,sigma(1,:),append=.false.)
+  call splot("Self_iw.last",wm,sigma(2,:),append=.false.)
+  call splot("observables.last",iloop,beta,xmu,u,n,n0,delta,delta0,append=.false.)
 
 contains
 
 
   subroutine search_mu(convergence)
-    integer, save         ::nindex
+    integer, save         ::nindex,be_far=0
     integer               ::nindex1
     real(8)               :: naverage,ndelta1
     logical,intent(inout) :: convergence
-    naverage=n
+    naverage=2.d0*n
     nindex1=nindex
     ndelta1=ndelta
     if((naverage >= nread+nerror))then
@@ -141,13 +159,21 @@ contains
     else
        nindex=0
     endif
-    if(nindex1+nindex==0)then !avoid loop forth and back
-       ndelta=real(ndelta1/2.d0,8) !decreasing the step
-       xmu=xmu+real(nindex,8)*ndelta
+    if(nindex1+nindex==0.AND.nindex/=0)then !avoid loop forth and back
+       ndelta=ndelta1/2.d0
     else
        ndelta=ndelta1
-       xmu=xmu+real(nindex,8)*ndelta
+       ! if(abs(nindex+nindex1)==2)then
+       !    be_far=be_far+1
+       ! else
+       !    be_far=0
+       ! endif
+       ! if(be_far>6)then
+       !    ndelta=2.d0*ndelta
+       !    be_far=0
+       ! endif
     endif
+    xmu=xmu+real(nindex,8)*ndelta
     write(*,"(A,2f15.12,A,f15.12,A,I3,f15.12)")"mu,n=",xmu,naverage,"/",nread,"| ",nindex,ndelta
     if(abs(naverage-nread)>nerror)convergence=.false.
     call splot("muVSiter.ipt",iloop,xmu,abs(naverage-nread),append=.true.)
@@ -170,4 +196,4 @@ contains
     endif
   end subroutine get_initial_sigma
 
-end program hmmpt_2dsquare_matsubara
+end program

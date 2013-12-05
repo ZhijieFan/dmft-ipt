@@ -102,7 +102,7 @@ subroutine get_sc_internal_energy
   write(*,*) 'Internal Energy',Eint
   write(*,*)'========================================='
   call splot("nk_distribution.ipt",epsik,n_k,2.d0*free)
-  call splot("thermodynamics.ipt",L,n,0.5d0*checkdens,kin,kinsim,docc,Ds,append=TT)
+  call splot("thermodynamics.ipt",L,n,0.5d0*checkdens,kin,kinsim,docc,Ds,append=.true.)
 
   !  call splot("fnk0_distribution.last",epsik,Ffree)
   !   write(42,143)xmu,totdens,checkdens,dreal(kinsim),Tcheck,double

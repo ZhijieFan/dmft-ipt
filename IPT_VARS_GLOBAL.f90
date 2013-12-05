@@ -51,6 +51,7 @@ module IPT_VARS_GLOBAL
   USE FFTGF
   USE INTEGRATE
   USE TOOLS
+  USE ARRAYS
   USE FUNCTIONS
   implicit none
 
@@ -162,7 +163,7 @@ contains
     call parse_cmd_variable(L,"L")
     call parse_cmd_variable(eps,"EPS")
     call parse_cmd_variable(wmax,"WMAX")
-    call parse_cmd_variable(weight,"WEIGTH","WEIGHT")
+    call parse_cmd_variable(weight,"WEIGHT")
     call parse_cmd_variable(printf,"PRINTF")
     call parse_cmd_variable(eps_error,"EPS_ERROR")
     call parse_cmd_variable(nsuccess,"NSUCCESS")

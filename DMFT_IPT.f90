@@ -1,6 +1,4 @@
 !###############################################################
-!     PROGRAM  : IPT_LIB
-!     TYPE     : Module
 !     PURPOSE  : Contains all the modules used to solve DMFT with IPT
 !     AUTHORS  : Adriano Amaricci
 !###############################################################

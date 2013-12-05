@@ -6,31 +6,42 @@
 !########################################################
 program hmipt
   USE DMFT_IPT 
+  USE SCIFOR_VERSION
   USE IOTOOLS
-  USE SPLINE
+  USE INTERPOLATE
+  USE INTEGRATE
+  USE OPTIMIZE
+  USE ERROR
+  USE TIMER
   implicit none
-  integer    :: i,ik,Lk,iloop,Lm,p,q
-  logical    :: converged
-  complex(8) :: det,zeta1,zeta2,x1,x2
-  real(8)    :: delta,n,A,B,nf,nfL,nfR,ekin
+  integer                      :: i,ik,Lk,iloop,Lm,p,q,Lf,Lmts
+  logical                      :: converged
+  complex(8)                   :: det,zeta1,zeta2,x1,x2
+  real(8)                      :: delta,n,A,B,nf,nfL,nfR,ekin,dzeta1,dzeta2
   !
-  complex(8),allocatable          :: sigma(:,:),fg(:,:),wf0(:,:),calG(:,:),dummy(:,:)
-  complex(8),allocatable          :: zeta(:),fgm(:,:),sm(:,:)
+  complex(8),allocatable       :: sigma(:,:),fg(:,:),wf0(:,:),calG(:,:),dummy(:,:)
+  complex(8),allocatable       :: zeta(:),fgm(:,:),sm(:,:)
   !
-  real(8),allocatable             :: wt(:),epsik(:),wr(:),t(:),wrx(:),dos(:,:),en(:),nk(:)
+  real(8),allocatable          :: wt(:),epsik(:),wr(:),t(:),wrx(:),dos(:,:),en(:),nk(:),ddet(:),ipoles(:)
   !
-  type(keldysh_equilibrium_gf)    :: fg0k(2),sk(2),calG11,calG22,calF12,calF21
+  type(keldysh_equilibrium_gf) :: fg0k(2),sk(2),calG11,calG22,calF12,calF21
   !
-  real(8) :: vbias
-  logical :: type,thermo
+  real(8)                      :: vbias,wxmax
+  logical                      :: type,thermo,poles,octype
+  type(finter_type)            :: det_finter
+
 
   include "revision.inc"
   call version(revision)
 
   call read_input("inputIPT.in")
   call parse_cmd_variable(vbias,'VBIAS',default=0.d0)
-  call parse_cmd_variable(type,"TYPE",default=.false.)
-  call parse_cmd_variable(thermo,"thermo",default=.false.)
+  call parse_cmd_variable(poles,"POLES",default=.false.)
+  call parse_cmd_variable(octype,"OCTYPE",default=.false.)
+  call parse_cmd_variable(thermo,"THERMO",default=.false.)
+  call parse_cmd_variable(wxmax,"WXMAX",default=12.d0)
+  call parse_cmd_variable(Lf,"LF",default=4096)
+  call parse_cmd_variable(Lmts,"Lmts",default=4096)
 
   allocate(fg(2,L))
   allocate(sigma(2,L))
@@ -57,7 +68,30 @@ program hmipt
   call get_initial_sigma
 
   iloop=0    ; converged=.false.
-  if(type)then
+
+  if(poles)then
+     converged=.true.
+     Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk),ddet(L),ipoles(Lk))
+     call bethe_lattice(wt,epsik,Lk,D)
+     zeta(:) = wr(:) + xmu - sigma(1,:)
+     do ik=1,Lk
+        do i=1,L
+           dzeta1 = dreal(zeta(i))
+           dzeta2 = dreal(zeta(L+1-i))
+           ddet(i) = (dzeta1-epsik(ik))*(dzeta2-epsik(ik))+dreal(sigma(2,L+1-i))*dreal(Sigma(2,i))
+        enddo
+        call init_finter(det_finter,wr,ddet,5)
+        ipoles(ik) = fzero_brentq(det_poles,0.d0,wr(L))
+     enddo
+     call splot("poles.last",epsik,ipoles)
+     stop
+  endif
+
+
+
+  if(thermo)then
+     !GET Matsubara functions (not working well: aka only at large enough temperature, 
+     !because of the finite broadening you can not resolve infinitely small energies/temp)
      converged=.true.
      fg=zero
      zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
@@ -69,15 +103,18 @@ program hmipt
         fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
         fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
      enddo
-     delta=-u*trapz(fmesh,dimag(fg(2,:))*istep(wr(:)))/pi
-     n    =-trapz(fmesh,dimag(fg(1,:))*istep(wr(:)))/pi
-     !GET Matsubara functions (not working well)
-     Lm=Nx**2
-     allocate(wrx(Lm),fgm(2,Lm),sm(2,Lm))
-     wrx = pi/beta*real(2*arange(1,Lm)-1,8)
+     delta=-u*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
+     n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
+     allocate(wrx(Lmts),fgm(2,Lmts),sm(2,Lmts))
+     wrx = pi/beta*real(2*arange(1,Lmts)-1,8)
+     write(*,*)"Get Matsubara GF:",Lmts
+     print*,'G(iw)'
      call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
+     print*,'Sigma(iw)'
      call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
+     print*,'F(iw)'
      call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
+     print*,'S(iw)'
      call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
      fgm(2,:)=dreal(fgm(2,:))
      sm(2,:)=dreal(sm(2,:))-delta
@@ -87,9 +124,53 @@ program hmipt
      call splot("Self_iw.last",wrx,sm(2,:))
      Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk))
      call bethe_lattice(wt,epsik,Lk,D)
-     call get_sc_internal_energy(Lm,wrx,fgm,sm)
+     call get_sc_internal_energy(Lmts,wrx,fgm,sm)
      stop
   endif
+  ! if(thermo)then
+  !    !GET Matsubara functions (not working well: aka only at large enough temperature, 
+  !    !because of the finite broadening you can not resolve infinitely small energies/temp)
+  !    allocate(wrx(Lmts),fgm(2,Lmts),sm(2,Lmts))
+  !    wrx = pi/beta*real(2*arange(1,Lmts)-1,8)
+  !    write(*,*)"Get Matsubara GF:"
+  !    print*,'G(iw)'
+  !    call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
+  !    print*,'Sigma(iw)'
+  !    call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
+  !    print*,'F(iw)'
+  !    call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
+  !    print*,'S(iw)'
+  !    call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
+  !    fgm(2,:)=dreal(fgm(2,:))
+  !    sm(2,:)=dreal(sm(2,:))-delta
+  !    call splot("G_iw.last",wrx,fgm(1,:))
+  !    call splot("F_iw.last",wrx,fgm(2,:))
+  !    call splot("Sigma_iw.last",wrx,sm(1,:))
+  !    call splot("Self_iw.last",wrx,sm(2,:))
+  !    Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk))
+  !    call bethe_lattice(wt,epsik,Lk,D)
+  !    call get_sc_internal_energy(Lmts,wrx,fgm,sm)
+  ! endif
+
+
+
+
+  if(octype)then
+     converged=.true.
+     if(mod(Lf,2)/=0)Lf=Lf+1
+     allocate(wrx(Lf),dummy(2,Lf))
+     wrx = linspace(-wxmax,wxmax,Lf)
+     call cubic_spline(wr,sigma(1,:),wrx,dummy(1,:))
+     call cubic_spline(wr,sigma(2,:),wrx,dummy(2,:))
+     call splot("Sigma_realw_oc.last",wrx,dummy(1,:))
+     call splot("Self_realw_oc.last",wrx,dummy(2,:))
+     Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
+     call bethe_lattice(wt,epsik,Lk,D)
+     call get_sc_optical_conductivity(Lf,wrx,dummy)  
+     deallocate(wt,epsik,wrx,dummy)
+     stop
+  endif
+
 
 
 
@@ -97,7 +178,7 @@ program hmipt
      iloop=iloop+1
      write(*,"(A,i5)",advance="no")"DMFT-loop",iloop
 
-     !GET GLOC:
+     !GETGLOC:
      fg=zero
      zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
      do i=1,L
@@ -135,8 +216,8 @@ program hmipt
         nf= (nfL+nfR)/2.d0
         fg0k(1)%less%w(i) = pi2*xi*nf*A
         fg0k(1)%gtr%w(i)  = pi2*xi*(nf-1.d0)*A
-        fg0k(2)%less%w(i) = pi2*xi*nf*B       !*delta/abs(wr(i))
-        fg0k(2)%gtr%w(i)  = pi2*xi*(nf-1.d0)*B!*delta/abs(wr(i))
+        fg0k(2)%less%w(i) = pi2*xi*nf*B       
+        fg0k(2)%gtr%w(i)  = pi2*xi*(nf-1.d0)*B
      enddo
 
      calG11%less%w = fg0k(1)%less%w    
@@ -174,7 +255,6 @@ program hmipt
      call fftgf_rt2rw(sk(1)%ret%t,sk(1)%ret%w,Lm) ;      sk(1)%ret%w=dt*sk(1)%ret%w
      call fftgf_rt2rw(sk(2)%ret%t,sk(2)%ret%w,Lm) ;      sk(2)%ret%w=dt*sk(2)%ret%w
 
-
      sigma(1,:) = sk(1)%ret%w
      sigma(2,:) = -delta + sk(2)%ret%w
 
@@ -188,64 +268,59 @@ program hmipt
   call splot("Self_realw.restart",wr,sigma(2,:))
 
 
+
   !REDUCE size for printing.
-  Lm=Nx**2
-  wmax=12.d0
-  allocate(wrx(Lm),dummy(2,Lm))
-  wrx = linspace(-wmax,wmax,Lm)
+  if(mod(Lf,2)/=0)Lf=Lf+1
+  allocate(wrx(Lf),dummy(2,Lf))
+  wrx = linspace(-wmax,wmax,Lf)
 
-  call cubic_spline(fg(1,:),wr(:),dummy(1,:),wrx)
+  call cubic_spline(wr(:),fg(1,:),wrx,dummy(1,:))
   call splot("DOS.last",wrx,-dimag(dummy(1,:))/pi)
-
-  call cubic_spline(sigma(1,:),wr(:),dummy(1,:),wrx)
-  call cubic_spline(sigma(2,:),wr(:),dummy(2,:),wrx)
-  call splot("Sigma_realw.last",wrx,dummy(1,:))
-  call splot("Self_realw.last",wrx,dummy(2,:))
-
-  call cubic_spline(fg(1,:),wr(:),dummy(1,:),wrx)
-  call cubic_spline(fg(2,:),wr(:),dummy(2,:),wrx)
+  !
+  call cubic_spline(wr,fg(1,:),wrx,dummy(1,:))
+  call cubic_spline(wr,fg(2,:),wrx,dummy(2,:))
   call splot("G_realw.last",wrx,dummy(1,:))
   call splot("F_realw.last",wrx,dummy(2,:))
-
-
-  call cubic_spline(calG(1,:),wr(:),dummy(1,:),wrx)
-  call cubic_spline(calG(2,:),wr(:),dummy(2,:),wrx)
+  !
+  call cubic_spline(wr,calG(1,:),wrx,dummy(1,:))
+  call cubic_spline(wr,calG(2,:),wrx,dummy(2,:))
   call splot("calG0_realw.last",wrx,dummy(1,:))
   call splot("calF0_realw.last",wrx,dummy(2,:))
-
+  !
+  call cubic_spline(wr,sigma(1,:),wrx,dummy(1,:))
+  call cubic_spline(wr,sigma(2,:),wrx,dummy(2,:))
+  call splot("Sigma_realw.last",wrx,dummy(1,:))
+  call splot("Self_realw.last",wrx,dummy(2,:))
+  !
+  ! Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
+  ! call bethe_lattice(wt,epsik,Lk,D)
+  ! call get_sc_optical_conductivity(Lm,wrx,dummy)  
+  ! deallocate(wt,epsik)
   deallocate(wrx,dummy)
 
-  if(thermo)then
-     !GET Matsubara functions (not working well: aka only at large enough temperature, 
-     !because of the finite broadening you can not resolve infinitely small energies/temp)
-     Lm=4096*4
-     allocate(wrx(Lm),fgm(2,Lm),sm(2,Lm))
-     wrx = pi/beta*real(2*arange(1,Lm)-1,8)
-     call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
-     call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
-     call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
-     call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
-     fgm(2,:)=dreal(fgm(2,:))
-     sm(2,:)=dreal(sm(2,:))-delta
-     call splot("G_iw.last",wrx,fgm(1,:))
-     call splot("F_iw.last",wrx,fgm(2,:))
-     call splot("Sigma_iw.last",wrx,sm(1,:))
-     call splot("Self_iw.last",wrx,sm(2,:))
-     Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk))
-     call bethe_lattice(wt,epsik,Lk,D)
-     call get_sc_internal_energy(Lm,wrx,fgm,sm)
-  endif
 
+
+
+
+
+
+  !##################################################################
+  !##################################################################
 contains 
+  !##################################################################
+  !##################################################################
 
-  elemental function istep(x) result(out)!,beta) result(out)
-    real(8),intent(in) :: x!, beta 
+
+  function det_poles(w) result(det)
+    real(8) :: w
+    real(8) :: det
+    det = finter(det_finter,w)
+  end function det_poles
+
+
+  elemental function istep(x) result(out)
+    real(8),intent(in) :: x
     real(8)            :: out
-    ! if(x*beta > 100.d0)then
-    !    fermi=0.d0
-    !    return
-    ! endif
-    ! fermi = 1.d0/(1.d0+exp(beta*x))
     if(x < 0.d0) then
        out = 1.0d0
     elseif(x==0.d0)then
@@ -274,6 +349,76 @@ contains
   end subroutine get_initial_sigma
 
 
+  subroutine get_sc_optical_conductivity(L,wr,sigma)
+    integer                :: L
+    real(8)                :: wr(L),D,dw
+    complex(8)             :: sigma(2,L)
+    integer                :: i,ik,iv,iw,Nw
+    real(8)                :: vel2,dos,Dfermi,A2,B2,ock
+    complex(8)             :: det,zeta1,zeta2,fg(2)
+    real(8),allocatable    :: oc(:), Ak(:,:,:),cDOS(:,:),ocw(:)
+    complex(8),allocatable :: zeta(:)
+
+    print*,"Get OC with:",L,"freq."
+    Nw=L/2
+    allocate(Ak(2,Lk,L),zeta(L))
+
+    dw = abs(wr(2)-wr(1))
+    allocate(cDOS(2,L))
+    cDOS=0.d0
+    zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
+    do i=1,L
+       zeta1 = zeta(i)
+       zeta2 = conjg(zeta(L+1-i))
+       do ik=1,Lk
+          det = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
+          fg(1)=(zeta2-epsik(ik))/det
+          fg(2)=conjg(sigma(2,L+1-i))/det
+          Ak(1,ik,i)=-dimag(fg(1))/pi
+          Ak(2,ik,i)=-dimag(fg(2))/pi
+          cDOS(1,i)=cDOS(1,i)+Ak(1,ik,i)*wt(ik)
+          cDOS(2,i)=cDOS(2,i)+Ak(2,ik,i)*wt(ik)
+       enddo
+    enddo
+    call splot("ocDOS.last",wr,cDOS(1,:),cDOS(2,:))
+    deallocate(cDOS)
+    ! do ik=1,Lk
+    !    do i=1,L
+    !       write(100,*)wr(i),Ak(1,ik,i)
+    !       write(200,*)wr(i),Ak(2,ik,i)
+    !    enddo
+    !    write(100,*)""
+    !    write(200,*)""
+    ! enddo
+
+    !Changing the loop order does not affect the calculation.
+    D=2.d0*ts
+    allocate(oc(Nw),ocw(L))
+    oc=0.d0
+    call start_progress
+    do iv=1,Nw
+       ocw   = 0.d0
+       do iw=1,L-iv
+          Dfermi  = istep(wr(iw)) - istep(wr(iw+iv))
+          ock=0.d0
+          do ik=1,Lk
+             A2 = Ak(1,ik,iw)*Ak(1,ik,iw+iv)
+             B2 = Ak(2,ik,iw)*Ak(2,ik,iw+iv)
+             vel2= (D**2-epsik(ik)**2)/3.d0
+             ock = ock + vel2*(A2-B2)*wt(ik)
+          enddo
+          ocw(iw) = Dfermi*ock
+       enddo
+       oc(iv)=trapz(dw,ocw(:L-iv))/wr(Nw+iv)
+       call progress(iv,Nw)
+    enddo
+    call stop_progress
+    call splot("OC_realw.ipt",wr(Nw+1:L),oc(:))
+    call splot("OC_integral.ipt",vbias,trapz(dw,oc))
+  end subroutine get_sc_optical_conductivity
+
+
+
 
 
   subroutine get_sc_internal_energy(L,wm,fg,sigma)
@@ -292,7 +437,7 @@ contains
     S_infty     =   dreal(sigma(2,L))
 
     checkP=0.d0 ; checkdens=0.d0 ;          ! test variables
-
+    call start_progress
     kin=0.d0                      ! kinetic energy (generic)
     Ds=0.d0                       ! superfluid stiffness (Bethe)
 
@@ -336,14 +481,12 @@ contains
        checkdens = checkdens + wt(ik)*n_k(ik)
        kin    = kin    + wt(ik)*n_k(ik)*epsik(ik)
        Ds=Ds + 8.d0/beta* wt(ik)*vertex*Dssum
+       call progress(ik,Lk)
     enddo
-
-    !  call splot("nk0_distribution.last",epsik,2.d0*free)
-    !  call splot("fnk0_distribution.last",epsik,Ffree)
+    call stop_progress
 
     kinsim=0
     kinsim = sum(fg(1,:)*fg(1,:)+conjg(fg(1,:))*conjg(fg(1,:))-2.d0*fg(2,:)*fg(2,:))*2.d0*ts**2/beta
-    ! kinsim = kinsim - 1.d0/(2*pi*wm(L)) !check out where this term comes from??!!
 
     Epot=zero
     Epot = sum(fg(1,:)*sigma(1,:) + fg(2,:)*sigma(2,:))/beta*2.d0
@@ -358,9 +501,7 @@ contains
     Ds = sum(fg(2,:)*fg(2,:))/beta*2.d0
 
 
-    write(*,*)'========================================='      
     write(*,*)"Asymptotic Self-Energies",Sigma_infty, S_infty
-    write(*,*)'========================================='
     write(*,*)"n,delta",n,delta
     write(*,*)"Dn% ,Ddelta%",(n-0.5d0*checkdens)/n,(delta + u*checkP)/delta ! u is positive
     write(*,*)'========================================='
@@ -376,8 +517,13 @@ contains
     write(*,*) 'Potential Energy U(n_up-1/2)(n_do-1/2)',Epot
     write(*,*) 'Internal Energy',Eint
     write(*,*)'========================================='
-    call splot("nk_distribution.ipt",epsik,n_k,2.d0*free)
-    call splot("thermodynamics.ipt",vbias,u,beta,n,kinsim,docc,Ds,Epot,Eint)
+    call splot("nk_distribution.ipt",epsik,n_k/2.d0,free)
+    open(100,file="columns.ipt")
+    write(100,"(11A21)")"1vbias","2u","3beta","4n","5kin","6docc","7Ds","8Epot","9Eint"
+    close(100)
+    open(200,file="thermodynamics.ipt")
+    write(200,"(11F21.12)")vbias,u,beta,n,kinsim,docc,Ds,Epot,Eint
+    close(200)
     return 
   end subroutine get_sc_internal_energy
 

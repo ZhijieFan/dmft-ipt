@@ -1,9 +1,12 @@
 #########################################################################
 include sfmake.inc
 #########################################################################
+#EXE=ahmbcs_keldysh
 EXE=ahmipt_keldysh
 #EXE=pammpt_real_fixdens
 #EXE=ahmipt_matsubara
+#EXE=ahmmpt_matsubara_2dsquare
+#EXE=ahmmpt_real_2dsquare
 #EXE=hmipt_keldysh_2dsquare
 #EXE=hmipt_real
 #EXE=hmipt_matsubara
@@ -20,8 +23,8 @@ IPT_SC_MATS.o \
 IPT_AF_MATS.o \
 DMFT_IPT.o
 
-ARGS= $(SFMODS) $(SFLIBS)
-ARGS_DEB=$(SFMODS_DEB) $(SFLIBS_DEB)
+ARGS= $(SFLIBS)
+ARGS_DEB=$(SFLIBS_DEB)
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 
 #=================STANDARD COMPILATION====================================
@@ -56,7 +59,7 @@ debug: 	version $(OBJS)
 
 
 .f90.o:	
-	$(FC) $(FLAG) -c $< $(SFMODS) 
+	$(FC) $(FLAG) -c $< $(SFINCLUDE) 
 
 clean: 
 	@echo 'removing *.mod *.o *~'
