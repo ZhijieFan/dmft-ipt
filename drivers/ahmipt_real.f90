@@ -7,6 +7,7 @@
 program hmipt
   USE DMFT_IPT 
   USE IOTOOLS
+  USE ERROR
   implicit none
   integer    :: i,ik,Lk,iloop
   logical    :: converged
@@ -19,8 +20,8 @@ program hmipt
   !
   real(8),allocatable :: wt(:),epsik(:),wr(:),wm(:),tau(:)
 
-  include "revision.inc"
-  call version(revision)
+  ! include "revision.inc"
+  ! call version(revision)
   call read_input("inputIPT.in")
 
   allocate(wr(L))
@@ -79,7 +80,8 @@ program hmipt
      do i=1,L
         det     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
         wf0(1,i)= conjg(fg(1,L+1-i))/det  + sigma(1,i)   +  u*(n-0.5d0)
-        wf0(2,i)= fg(2,i)/det       + conjg(sigma(2,L+1-i))   + delta
+        wf0(2,i)= conjg(fg(2,L+1-i))/det  + sigma(2,i)   + delta
+        !fg(2,i)/det       + conjg(sigma(2,L+1-i))   + delta
      end do
      do i=1,L
         det      =  wf0(1,i)*conjg(wf0(1,L+1-i)) + conjg(wf0(2,L+1-i))*wf0(2,i)
@@ -87,23 +89,23 @@ program hmipt
         calG(2,i)=  conjg(wf0(2,L+1-i))/det
      end do
 
-     write(*,"(2f14.9)",advance="no")2.d0*n,delta
+     write(*,"(3f14.9)",advance="no")2.d0*n,delta,delta/u
      sold=sigma
      sigma =  solve_ipt_sc_sopt(calG(1:2,:),wr,delta,L)
      sigma = weight*sigma + (1.d0-weight)*sold
-     converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
+     converged = check_convergence(sigma(1,:)+sigma(2,:),eps=dmft_error,N1=Nsuccess,N2=Nloop)
 
-     call splot("DOS.ipt",wr,-dimag(fg(1,:))/pi,append=printf)
-     call splot("G_realw.ipt",wr,fg(1,:),append=printf)
-     call splot("F_realw.ipt",wr,fg(2,:),append=printf)
-     call splot("Sigma_realw.ipt",wr,sigma(1,:),append=printf)
-     call splot("Self_realw.ipt",wr,sigma(2,:),append=printf)
-     call splot("calG0_realw.ipt",wr,calG(1,:),append=printf)
-     call splot("calF0_realw.ipt",wr,calG(2,:),append=printf)
-     call splot("observables.ipt",xmu,u,n,delta,beta,dble(iloop),append=printf)
+     call splot("DOS.ipt",wr,-dimag(fg(1,:))/pi,append=.false.)
+     call splot("G_realw.ipt",wr,fg(1,:),append=.false.)
+     call splot("F_realw.ipt",wr,fg(2,:),append=.false.)
+     call splot("Sigma_realw.ipt",wr,sigma(1,:),append=.false.)
+     call splot("Self_realw.ipt",wr,sigma(2,:),append=.false.)
+     call splot("calG0_realw.ipt",wr,calG(1,:),append=.false.)
+     call splot("calF0_realw.ipt",wr,calG(2,:),append=.false.)
+     call splot("observables.ipt",xmu,u,n,delta/u,delta,beta,dble(iloop),append=.false.)
   enddo
 
-  call splot("observables.last",xmu,u,n,delta,beta,dble(iloop),append=printf)
+  call splot("observables.last",xmu,u,n,delta/u,delta,beta,dble(iloop),append=.false.)
   call splot("DOS.last",wr,-dimag(fg(1,:))/pi)
   call splot("G_realw.last",wr,fg(1,:))
   call splot("F_realw.last",wr,fg(2,:))

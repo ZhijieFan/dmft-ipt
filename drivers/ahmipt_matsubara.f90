@@ -7,6 +7,7 @@
 program hmipt_matsubara
   USE DMFT_IPT
   USE IOTOOLS
+  USE ERROR
   implicit none
 
   integer                :: i,ik,Lk,iloop
@@ -61,19 +62,18 @@ program hmipt_matsubara
      calG(1,:) =  conjg(fg0(1,:))/det
      calG(2,:) =  fg0(2,:)/det
 
-
-     write(*,"(4(f16.12))",advance="no")delta
+     write(*,"(3f14.9)",advance="no")2.d0*n,delta,delta/u
      sigma =  solve_ipt_sc_matsubara(calG,delta)
-     converged = check_convergence(sigma(1,:)+sigma(2,:),eps=eps_error,N1=Nsuccess,N2=Nloop)
+     converged = check_convergence(sigma(1,:)+sigma(2,:),eps=dmft_error,N1=Nsuccess,N2=Nloop)
   enddo
 
-  call splot("Sigma_iw.last",wm,sigma(1,:),append=printf)
-  call splot("Self_iw.last",wm,sigma(2,:),append=printf)
-  call splot("G_iw.last",wm,fg(1,:),append=printf)
-  call splot("F_iw.last",wm,fg(2,:),append=printf)
-  call splot("calG_iw.last",wm,calG(1,:),append=printf)
-  call splot("calF_iw.last",wm,calG(2,:),append=printf)
-  call splot("observables.last",u,beta,n,delta,append=printf)
+  call splot("Sigma_iw.last",wm,sigma(1,:),append=.false.)
+  call splot("Self_iw.last",wm,sigma(2,:),append=.false.)
+  call splot("G_iw.last",wm,fg(1,:),append=.false.)
+  call splot("F_iw.last",wm,fg(2,:),append=.false.)
+  call splot("calG_iw.last",wm,calG(1,:),append=.false.)
+  call splot("calF_iw.last",wm,calG(2,:),append=.false.)
+  call splot("observables.last",u,beta,n,delta,append=.false.)
 
   call get_sc_internal_energy
 
