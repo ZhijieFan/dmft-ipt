@@ -12,7 +12,6 @@
 !   L=[2048]   -- number of frequencies
 !   ts=[0.5]   -- n.n. hopping parameter
 !   tsp=[0]    -- n.n.n. hopping parameter
-!   nx=[20]    -- number of points in energy/k-grid
 !   wmax=[5]   -- max frequency on real axis
 !   eps=[0.01] -- broadening parameter
 !   deltasc=[0.1]     -- breaking symmetry parameter
@@ -36,8 +35,9 @@
 !   solve_mpt_sc_sopt(fg0_,wr_,n_,n0_,delta_,delta0_)  result(sigma_) dim(2,-L:L)
 !   solve_mpt_sc_matsubara(fg0_,n_,n0_,delta_,delta0_) result(sigma_) dim(2,L)
 module IPT_VARS_GLOBAL
-  USE COMMON_VARS
-  USE PARSE_CMD
+  USE SCIFOR_VERSION
+  USE CONSTANTS
+  USE PARSE_INPUT
   USE GREENFUNX
   USE FFTGF
   USE INTEGRATE
@@ -53,24 +53,22 @@ module IPT_VARS_GLOBAL
   real(8) :: d              !bandwidth
   real(8) :: ts             !hopping amplitude
   real(8) :: u              !local  interaction
+  real(8) :: ust            !local  interaction
   real(8) :: xmu            !chemical potential
   real(8) :: dt             !time step
   real(8) :: fmesh          !freq. step
   real(8) :: beta           !inverse temperature
   real(8) :: eps            !broadening
-  integer :: Nx
   real(8) :: wmin,wmax
   real(8) :: dmft_error
   integer :: Nsuccess
   real(8) :: weight
   real(8) :: deltasc
   !TO BE REMOVED
-  real(8) :: nread,nerror,ndelta
+  !real(8) :: nread,nerror,ndelta
 
-  !Namelists:
-  !=========================================================
-  namelist/variables/L,beta,U,ts,xmu,wmax,Nx,nloop,eps,weight,&
-       dmft_error,Nsuccess,deltasc,nread,nerror,ndelta
+  include "revision.inc"
+
 
 contains
 
@@ -81,75 +79,27 @@ contains
   !+----------------------------------------------------------------+
   subroutine read_input(inputFILE)
     character(len=*) :: inputFILE
-    integer :: i
-    logical :: control
-    !variables: default values
-    U     = 2.d0
-    beta  = 100.d0
-    ts    = 0.5d0
-    xmu   = 0.d0
-    Nx    = 20
-    nloop = 10
-    eps   = 0.01d0
-    wmax  = 5.d0
-    L     = 2048
-    weight= 0.9d0
-    dmft_error= 1.d-4
-    Nsuccess = 2
-    deltasc  = 0.1d0
-    nread=0.d0
-    nerror=1.d-4
-    ndelta=0.1d0
 
-    inquire(file=adjustl(trim(inputFILE)),exist=control)
-    if(control)then
-       open(10,file=adjustl(trim(inputFILE)))
-       read(10,nml=variables)
-       close(10)
-    else
-       open(10,file="default."//adjustl(trim(inputFILE)))
-       write(10,nml=variables)
-       close(10)
-       call error("can not open INPUT file, dumping a default version in default."//adjustl(trim(inputFILE)))
-    endif
+    call parse_input_variable(u,"U",inputFILE,default=2.d0,comment="")
+    call parse_input_variable(ust,"UST",inputFILE,default=0.d0)
+    call parse_input_variable(beta,"BETA",inputFILE,default=100.d0)
+    call parse_input_variable(ts,"TS",inputFILE,default=0.5d0)
+    call parse_input_variable(xmu,"XMU",inputFILE,default=0.d0)
+    call parse_input_variable(nloop,"NLOOP",inputFILE,default=100)
+    call parse_input_variable(L,"L",inputFILE,default=2048)
+    call parse_input_variable(eps,"EPS",inputFILE,default=0.01d0)
+    call parse_input_variable(wmax,"WMAX",inputFILE,default=5.d0)
+    call parse_input_variable(dmft_error,"DMFT_ERROR",inputFILE,default=1.d-4)
+    call parse_input_variable(nsuccess,"NSUCCESS",inputFILE,default=2)
+    call parse_input_variable(deltasc,"DELTASC",inputFILE,default=0.1d0)
+    ! call parse_input_variable(nread,"NREAD",inputFILE,default=0.d0)
+    ! call parse_input_variable(nerror,"NERROR",inputFILE,default=1.d-4)
+    ! call parse_input_variable(ndelta,"NDELTA",inputFILE,default=0.1d0)
 
-    call parse_cmd_variable(u,"U")
-    call parse_cmd_variable(beta,"BETA")
-    call parse_cmd_variable(ts,"TS")
-    call parse_cmd_variable(xmu,"XMU")
-    call parse_cmd_variable(nx,"NX")
-    call parse_cmd_variable(nloop,"NLOOP")
-    call parse_cmd_variable(L,"L")
-    call parse_cmd_variable(eps,"EPS")
-    call parse_cmd_variable(wmax,"WMAX")
-    call parse_cmd_variable(weight,"WEIGHT")
-    call parse_cmd_variable(dmft_error,"DMFT_ERROR")
-    call parse_cmd_variable(nsuccess,"NSUCCESS")
-    call parse_cmd_variable(deltasc,"DELTASC")
-    call parse_cmd_variable(nread,"NREAD")
-    call parse_cmd_variable(nerror,"NERROR")
-    call parse_cmd_variable(ndelta,"NDELTA")
+    call save_input_file(INPUTFILE)
+    call version(revision)
 
-    write(*,nml=variables)
-    open(10,file="used."//adjustl(trim(inputFILE)))
-    write(10,nml=variables)
-    close(10)
-    return
   end subroutine read_input
-
-
-  !******************************************************************
-  !******************************************************************
-  !******************************************************************
-
-
-  function get_local_density(giw,beta) result(n)
-    complex(8),dimension(:) :: giw
-    real(8)                 :: gtau(0:size(giw))
-    real(8)                 :: beta,n
-    call fftgf_iw2tau(giw,gtau,beta)
-    n = -2.d0*gtau(size(giw))
-  end function get_local_density
 
 
 end module IPT_VARS_GLOBAL

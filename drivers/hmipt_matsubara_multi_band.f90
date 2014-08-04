@@ -44,7 +44,7 @@ program hmipt_matsuara_multi_band
      fg0(2,:) = one/(one/fg(2,:) + sigma(2,:))
      !
      !IMPURITY SOLVER
-     sigma = solve_ipt_matsubara_mband(fg0)
+     sigma = solve_ipt_matsubara(fg0)
      converged=check_convergence(fg0(1,:)+fg0(2,:),dmft_error,nsuccess,nloop)
      !GET OBSERVABLES
      z(1)=1.d0 - dimag(sigma(1,1))/wm(1);z(1)=1.d0/z(1)

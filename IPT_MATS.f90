@@ -7,6 +7,10 @@ module IPT_MATS
   implicit none
   private
 
+  interface solve_ipt_matsubara
+     module procedure solve_ipt_matsubara_single,solve_ipt_matsubara_mband
+  end interface solve_ipt_matsubara
+
   interface solve_ipt_sc_matsubara
      module procedure solve_ipt_sc_matsubara_r,solve_ipt_sc_matsubara_c
   end interface solve_ipt_sc_matsubara
@@ -19,7 +23,7 @@ module IPT_MATS
   public :: solve_ipt_sc_matsubara
   public :: solve_mpt_matsubara !away from h-f
   public :: solve_mpt_sc_matsubara
-  ! public :: solve_ipt_matsubara_mband !multi-band !ACTHUNG EXPERIMENTAL!!
+  public :: solve_ipt_matsubara_4th !multi-band !ACTHUNG EXPERIMENTAL!!
 
 contains
 
@@ -28,7 +32,7 @@ contains
   !PURPOSE: Solve 2nd order perturbation theory in Matsubara for 
   ! the repulsive model at half-filling
   !+-------------------------------------------------------------------+
-  function solve_ipt_matsubara(fg0_iw) result(sigma_iw)
+  function solve_ipt_matsubara_single(fg0_iw) result(sigma_iw)
     complex(8),dimension(:)            :: fg0_iw
     complex(8),dimension(size(fg0_iw)) :: sigma_iw
     real(8),dimension(0:size(fg0_iw))  :: fg0_tau,sigma_tau
@@ -42,13 +46,50 @@ contains
        write(100,*)i*beta/dble(Lf),sigma_tau(i)
     enddo
     close(100)
-  end function solve_ipt_matsubara
+  end function solve_ipt_matsubara_single
+
+
+  function solve_ipt_matsubara_mband(fg0_iw) result(sigma_iw)
+    complex(8),dimension(:,:)                           :: fg0_iw
+    complex(8),dimension(size(fg0_iw,1),size(fg0_iw,2)) :: sigma_iw
+    real(8),dimension(size(fg0_iw,1),0:size(fg0_iw,2))  :: fg0_tau,sigma_tau
+    integer                                             :: i,ib,Lf,Nb
+    Nb=size(fg0_iw,1)
+    !<DEBUG
+    if(Nb>2)stop "Nband>2 is not yet implemented... ask developer"
+    !>DEBUG
+    Lf=size(fg0_iw,2)
+    do ib=1,Nb
+       call fftgf_iw2tau(fg0_iw(ib,:),fg0_tau(ib,0:),beta)
+    enddo
+    !Get contribution of the first diagram (1s,1sbar,1sbar)/(2s,2sbar,2sbar)
+    forall(ib=1:Nb,i=0:Lf)sigma_tau(ib,i)=U*U*fg0_tau(ib,i)*fg0_tau(ib,Lf-i)*fg0_tau(ib,i)
+    !Get contribution of the second class of 
+    !diagrams (1s,2s,2s)+(1s,2sbar,2sbar)/(2s,1s,1s)+(2s,1sbar,1sbar)
+    if(Ust/=0.d0)then
+       do ib=1,Nb
+          do i=0,Lf
+             sigma_tau(ib,i)=sigma_tau(ib,i)+&
+                  2.d0*Ust*Ust*fg0_tau(ib,i)*fg0_tau(3-ib,Lf-i)*fg0_tau(3-ib,i)
+          enddo
+       enddo
+    endif
+    do ib=1,Nb
+       call fftgf_tau2iw(sigma_tau(ib,0:),sigma_iw(ib,:),beta)
+    enddo
+    open(100,file="Sigma_tau.ipt")
+    do i=0,Lf
+       write(100,"(5F20.12)")i*beta/dble(Lf),(sigma_tau(ib,i),ib=1,Nb)
+    enddo
+    close(100)
+  end function solve_ipt_matsubara_mband
+
 
   !+-------------------------------------------------------------------+
   !PURPOSE: Solve 4th order perturbation theory in Matsubara for 
   ! the repulsive model at half-filling
   !+-------------------------------------------------------------------+
-  function solve_ipt_matsubara_mband(fg0_iw) result(sigma_iw)
+  function solve_ipt_matsubara_4th(fg0_iw) result(sigma_iw)
     complex(8),dimension(:)            :: fg0_iw
     complex(8),dimension(size(fg0_iw)) :: sigma_iw
     real(8),dimension(:),allocatable   :: fg0_tau
@@ -62,6 +103,7 @@ contains
     dtau = beta/dble(L)
     !Get G_0(tau)
     allocate(fg0_tau(0:L))
+    allocate(sigma_tau(0:L))
     call fftgf_iw2tau(fg0_iw,fg0_tau(0:),beta)
 
     allocate(kerx(0:L),kery(0:L),intx(0:L),ker(0:L))
@@ -69,19 +111,19 @@ contains
     !get \Sigma^(4a):
     do itau=0,L
        do ix=0,itau
-          kerx(ix) =  fg0_iw(itau-ix)**2*fg0_iw(ix)**2
+          kerx(ix) =  fg0_tau(itau-ix)**2*fg0_tau(ix)**2
        enddo
        do ix=itau,L
-          kerx(ix) = (-fg0_iw(L+itau-ix))**2*fg0_iw(ix)**2
+          kerx(ix) = (-fg0_tau(L+itau-ix))**2*fg0_tau(ix)**2
        enddo
        chi_a(itau) = trapz(dtau,kerx(0:L))
     enddo
     do itau=0,L
        do ix=0,itau
-          kerx(ix) =  fg0_iw(itau-ix)**2*chi_a(ix)
+          kerx(ix) =  fg0_tau(itau-ix)**2*chi_a(ix)
        enddo
        do ix=itau,L
-          kerx(ix) = (-fg0_iw(L+itau-ix))**2*chi_a(ix)
+          kerx(ix) = (-fg0_tau(L+itau-ix))**2*chi_a(ix)
        enddo
        sigma_tau_a(itau) = U*U*U*U*fg0_tau(itau)*trapz(dtau,kerx(0:L))
     enddo
@@ -90,19 +132,19 @@ contains
     allocate(sigma_tau_b(0:L),chi_b(0:L))    
     do itau=0,L
        do ix=0,itau
-          kerx(ix) =  fg0_iw(itau-ix)**3*fg0_iw(ix)
+          kerx(ix) =  fg0_tau(itau-ix)**3*fg0_tau(ix)
        enddo
        do ix=itau,L
-          kerx(ix) = (-fg0_iw(L+itau-ix))**3*fg0_iw(ix)
+          kerx(ix) = (-fg0_tau(L+itau-ix))**3*fg0_tau(ix)
        enddo
        chi_b(itau) = trapz(dtau,kerx(0:L))
     enddo
     do itau=0,L
        do ix=0,itau
-          kerx(ix) =  fg0_iw(itau-ix)*chi_b(ix)
+          kerx(ix) =  fg0_tau(itau-ix)*chi_b(ix)
        enddo
        do ix=itau,L
-          kerx(ix) = (-fg0_iw(L+itau-ix))*chi_b(ix)
+          kerx(ix) = (-fg0_tau(L+itau-ix))*chi_b(ix)
        enddo
        sigma_tau_b(itau) = U*U*U*U*fg0_tau(itau)**2*trapz(dtau,kerx(0:L))
     enddo
@@ -111,25 +153,25 @@ contains
     allocate(sigma_tau_c(0:L))
     do itau=0,L
        do iy=0,itau
-          kery(iy) =  fg0_iw(itau-iy)**2*fg0_iw(iy)
+          kery(iy) =  fg0_tau(itau-iy)**2*fg0_tau(iy)
        enddo
        do iy=itau,L
-          kery(iy) = (-fg0_iw(L+itau-iy))**2*fg0_iw(iy)
+          kery(iy) = (-fg0_tau(L+itau-iy))**2*fg0_tau(iy)
        enddo
        !
        do ix=0,itau
-          kerx(ix) =  fg0_iw(itau-ix)*fg0_iw(ix)**2
+          kerx(ix) =  fg0_tau(itau-ix)*fg0_tau(ix)**2
        enddo
        do ix=itau,L
-          kerx(ix) = (-fg0_iw(L+itau-ix))*fg0_iw(ix)**2
+          kerx(ix) = (-fg0_tau(L+itau-ix))*fg0_tau(ix)**2
        enddo
        !
        do iy=0,L
           do ix=0,iy
-             ker(ix) =  (-fg0_iw(L+itau-ix))*kerx(ix)
+             ker(ix) =  (-fg0_tau(L+ix-iy))*kerx(ix) !there  was an error itau=>iy
           enddo
           do ix=iy,L
-             ker(ix) = fg0_iw(itau-ix)*kerx(ix)
+             ker(ix) = fg0_tau(ix-iy)*kerx(ix)
           enddo
           intx(iy) = trapz(dtau,ker(0:L))
        enddo
@@ -141,40 +183,40 @@ contains
     allocate(sigma_tau_d(0:L))
     do itau=0,L
        do iy=0,itau
-          kery(iy) =  fg0_iw(itau-iy)*fg0_iw(iy)
+          kery(iy) =  fg0_tau(itau-iy)*fg0_tau(iy)
        enddo
        do iy=itau,L
-          kery(iy) = (-fg0_iw(L+itau-iy))*fg0_iw(iy)
+          kery(iy) = (-fg0_tau(L+itau-iy))*fg0_tau(iy)
        enddo
        !
        do ix=0,itau
-          kerx(ix) =  fg0_iw(itau-ix)*fg0_iw(ix)
+          kerx(ix) =  fg0_tau(itau-ix)*fg0_tau(ix)
        enddo
        do ix=itau,L
-          kerx(ix) = (-fg0_iw(L+itau-ix))*fg0_iw(ix)
+          kerx(ix) = (-fg0_tau(L+itau-ix))*fg0_tau(ix)
        enddo
        !
        do iy=0,L
           do ix=0,iy
-             ker(ix) =  (-fg0_iw(L+itau-ix))**2*kerx(ix)
+             ker(ix) =  (-fg0_tau(L+ix-iy))**2*kerx(ix)
           enddo
           do ix=iy,L
-             ker(ix) = fg0_iw(itau-ix)**2*kerx(ix)
+             ker(ix) = fg0_tau(ix-iy)**2*kerx(ix)
           enddo
           intx(iy) = trapz(dtau,ker(0:L))
        enddo
-       sigma_tau_d(itau) = -U*U*U*U*fg0_iw(itau)*trapz(dtau,kery(0:L)*intx(0:L))
+       sigma_tau_d(itau) = -U*U*U*U*fg0_tau(itau)*trapz(dtau,kery(0:L)*intx(0:L))
     enddo
 
     forall(itau=0:L)sigma_tau(itau)=U**2*(fg0_tau(itau))**2*fg0_tau(L-itau)
-    sigma_tau(0:) = sigma_tau(0:) + sigma_tau_a(0:)+sigma_tau_b(0:)+sigma_tau_c(0:)+sigma_tau_d(0:)
+    sigma_tau(0:) = sigma_tau(0:) + 3d0*(sigma_tau_a(0:)+sigma_tau_b(0:)+sigma_tau_c(0:)+sigma_tau_d(0:))
     call fftgf_tau2iw(sigma_tau(0:),sigma_iw,beta)
     open(100,file="Sigma_tau.ipt")
     do itau=0,L
        write(100,*)itau*beta/dble(L),sigma_tau(itau)
     enddo
     close(100)
-  end function solve_ipt_matsubara_mband
+  end function solve_ipt_matsubara_4th
 
 
   ! !+-------------------------------------------------------------------+
