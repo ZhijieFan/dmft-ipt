@@ -3,16 +3,12 @@
 !     AUTHORS  : Adriano Amaricci
 !###############################################################
 module DMFT_IPT
-  !GLOBAL VARIABLES:
+  USE IPT_GF
   USE IPT_VARS_GLOBAL
-  !IPT & IPT-SC:
-  USE IPT_MATS
-  USE IPT_SOPT
+  USE IPT_MATSUBARA
+  USE IPT_REAL
   USE IPT_KELDYSH
-  !IPT+SC:
-  USE IPT_SC_SOPT
-  !USE IPT_SC_MATS
-  !IPT+AF:
-  USE IPT_AF_MATS
+  ! !IPT+AF:
+  ! USE IPT_AF_MATS
   implicit none
 end module DMFT_IPT
