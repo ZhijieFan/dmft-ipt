@@ -1,75 +1,52 @@
-#########################################################################
-include sfmake.inc
-#########################################################################
-#EXE=ahmbcs_keldysh
-EXE=ahmipt_keldysh
-#EXE=ahmipt_real
-#EXE=pammpt_real_fixdens
-#EXE=ahmipt_matsubara
-#EXE=ahmmpt_matsubara_2dsquare
-#EXE=ahmmpt_real_2dsquare
-#EXE=hmipt_keldysh_2dsquare
-#EXE=hmipt_real
-#EXE=hmipt_matsubara
-#EXE=hmipt_matsubara_hypercubic
-#EXE=hmipt_matsubara_dmft_loop_g0
-#EXE=hmipt_matsubara_2dsquare
-#EXE=hmmpt_matsubara
-#EXE=hmipt_matsubara_multi_band
+##HUBBARD MODELS 
+#EXE=ipt_hm_matsubara
+#EXE=ipt_hm_real
+#EXE=ipt_hm_keldysh
+##ATTRACTIVE HUBBARD
+#EXE=ipt_ahm_matsubara
+#EXE=ipt_ahm_real
+EXE=ipt_ahm_keldysh
 
 DIR=./drivers
 DIREXE= $(HOME)/.bin
 
-.SUFFIXES: .f90 
-OBJS=IPT_VARS_GLOBAL.o \
-IPT_MATS.o    \
-IPT_KELDYSH.o \
-IPT_SOPT.o    \
-IPT_SC_SOPT.o \
-IPT_AF_MATS.o \
-DMFT_IPT.o
+.SUFFIXES: .f90
 
-ARGS= $(SFLIBS)
-ARGS_DEB=$(SFLIBS_DEB)
+#REVISION SOFTWARE GIT:
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
+VER = 'character(len=41),parameter :: revision = "$(REV)"' > revision.inc
 
-#=================STANDARD COMPILATION====================================
-all: FLAG=$(STD)
-all: version $(OBJS)
-	@echo " ........... compile: optimized ........... "
-	@echo $(VER)
-	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)_$(BRANCH) $(ARGS)
+OBJS=IPT_GF.o IPT_VARS_GLOBAL.o IPT_MATSUBARA.o IPT_REAL.o IPT_KELDYSH.o DMFT_IPT.o #IPT_AF_MATS.o
+
+MKLARGS=-lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm
+
+INCARGS=-I/opt/scifor/gnu/include -I/opt/dmft_tools/gnu/include
+FFLAG +=-ffree-line-length-none $(INCARGS)
+
+#ARGS=-ldmftt -lscifor $(MKLARGS) -lminpack -larpack -lparpack 
+ARGS= -ldmftt -lscifor -lfftpack -llapack -lblas -lminpack -larpack -lparpack
+
+all:compile
+
+
+compile: version $(OBJS)
+	@echo " ..................... compile ........................... "
+	$(FC) $(FFLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)_$(BRANCH) $(ARGS)
 	@echo " ...................... done .............................. "
 	@echo ""
-	@echo "created" $(DIREXE)/$(EXE)_$(BRANCH)
-
-#================OPTIMIZED COMPILATION====================================
-opt: FLAG=$(OPT)
-opt: 	version $(OBJS)
-	@echo " ........... compile: optimized ........... "
-	@echo $(VER)
-	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)_$(BRANCH) $(ARGS)
-	@echo " ...................... done .............................. "
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)_$(BRANCH)
-
-
-#================DEBUGGIN COMPILATION=====================================
-debug: FLAG=$(DEB)
-debug: 	version $(OBJS)
-	@echo " ........... compile : debug   ........... "
-	$(FC) $(FLAG) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)_$(BRANCH) $(ARGS_DEB)
-	@echo " ...................... done .............................. "
-	@echo ""
-	@echo "created" $(DIREXE)/$(EXE)_$(BRANCH)
-
 
 .f90.o:	
-	$(FC) $(FLAG) -c $< $(SFINCLUDE) 
+	$(FC) $(FFLAG) -c $< 
+
+completion:
+	src_completion.sh $(DIR)/$(EXE).f90
+	@echo "run: . .bash_completion.d/$(EXE) to add completion for $(EXE) in this shell"
 
 clean: 
-	@echo 'removing *.mod *.o *~'
-	@rm -vf *.mod *.o *~ 
+	@echo "Cleaning:"
+	@rm -f *.mod *.o *~ revision.inc
 
 version:
 	@echo $(VER)

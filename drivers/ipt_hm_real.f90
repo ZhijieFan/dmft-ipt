@@ -1,7 +1,9 @@
 program hmipt
   USE DMFT_IPT
-  USE IOTOOLS
   USE ERROR
+  USE ARRAYS
+  USE FUNCTIONS
+  USE IOTOOLS
   implicit none
   integer                :: i,iloop
   logical                :: converged
@@ -25,12 +27,11 @@ program hmipt
      enddo
      fg0 = one/(one/fg + sigma)
      sold = sigma
-     sigma= solve_ipt_sopt(fg0,wr)
-     sigma = weight*sigma + (1.d0-weight)*sold
+     sigma= ipt_solve_real(fg0,wr)
+     sigma = wmix*sigma + (1.d0-wmix)*sold
      converged=check_convergence(sigma,dmft_error,nsuccess,nloop)
   enddo
-  call splot("DOS.ipt",wr,-aimag(fg)/pi)
-  call splot("G_realw.ipt",wr,fg)
+  call splot("G_realw.ipt",wr,-dimag(fg)/pi,dreal(fg))
   call splot("G0_realw.ipt",wr,fg0)
   call splot("Sigma_realw.ipt",wr,sigma)
 

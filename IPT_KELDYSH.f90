@@ -1,232 +1,144 @@
-!###############################################################
-!     PROGRAM  : FUNX_KELDYSH
-!     TYPE     : Module
-!     PURPOSE  : Contains global variables
-!     AUTHORS  : Adriano Amaricci
-!###############################################################
 module IPT_KELDYSH
+  use IPT_GF
   use IPT_VARS_GLOBAL
+  USE FFTGF
+  use FUNCTIONS
+  use ARRAYS
+  implicit none
   private
 
-  integer                      :: M
-  integer,save                 :: loop=1 
-  type(keldysh_equilibrium_gf) :: fg0,sigma
-  real(8)                      :: dt_,dw_
-  real(8),allocatable          :: t_(:),wr_(:)
-  public                       :: solve_ipt_keldysh
+  integer             :: M
+  integer,save        :: loop=1 
+  type(keldysh_gf)    :: fg0,sigma
+  type(keldysh_gf)    :: fg0k(2),sk(2),calG11,calG22,calF12,calF21
+  real(8)             :: dt_,dw_
+  real(8),allocatable :: t_(:),wr_(:)
+
+  public :: ipt_solve_keldysh
+  public :: ipt_solve_keldysh_sc
 
 contains
 
   !+-------------------------------------------------------------------+
   !PURPOSE  : 
   !+-------------------------------------------------------------------+
-  function solve_ipt_keldysh(fg0_,wmax_) result(sigma_)
-    complex(8),dimension(:)              :: fg0_
+  function ipt_solve_keldysh(fg0_,wmax_) result(sigma_)
+    complex(8),dimension(:)          :: fg0_
     complex(8),dimension(size(fg0_)) :: sigma_
-    real(8)                              :: wmax_
-    M=size(fg0_)/2
+    real(8)                          :: wmax_,tmax_
+    integer                          :: i
+    real(8)                          :: A
+    M=size(fg0_)
     if(loop==1)then
        if(.not.fg0%status)  call allocate_gf(fg0,M)
        if(.not.sigma%status)call allocate_gf(sigma,M)
     endif
     fg0%ret%w = fg0_
     dt_       = pi/wmax_
-    dw_       = 2.d0*wmax_/real(2*M-1,8) 
-    allocate(wr_(2*M),t_(-M:M))
-    wr_  = linspace(-wmax_,wmax_,2*M,mesh=dw_)
-    t_   = linspace(-dt_*real(M,8),dt_*real(M,8),2*M+1,mesh=dt_)
-    call simpurity
-    sigma_=sigma%ret%w
-    loop=loop+1
-    deallocate(wr_,t_)
-  end function solve_ipt_keldysh
-  !*******************************************************************
-  !*******************************************************************
-  !*******************************************************************
-
-  !+-------------------------------------------------------------------+
-  !PURPOSE  : 
-  !+-------------------------------------------------------------------+
-  subroutine simpurity
-    integer :: i
-    real(8) :: A
+    tmax_     = dt_*M/2
+    allocate(wr_(M),t_(M))
+    wr_  = linspace(-wmax_,wmax_,M,mesh=dw_)
+    t_   = linspace(-tmax_+dt_,tmax_,M,mesh=dt_)
+    !
     !FFT to real time:
     !G0^{<,>}(t) = FT[G0^{<,>}(w)]
-    do i=1,2*M
+    do i=1,M
        A = -dimag(fg0%ret%w(i))/pi
        fg0%less%w(i) = pi2*xi*fermi(wr_(i),beta)*A
        fg0%gtr%w(i)  = pi2*xi*(fermi(wr_(i),beta)-1.d0)*A
     enddo
-    call fftgf_rw2rt(fg0%less%w,fg0%less%t,M) ; fg0%less%t=dw_/pi2*fg0%less%t
-    call fftgf_rw2rt(fg0%gtr%w,fg0%gtr%t,M)   ; fg0%gtr%t =dw_/pi2*fg0%gtr%t
-    do i=-M,M
-       sigma%less%t(i)=(U**2)*(fg0%less%t(i)**2)*fg0%gtr%t(-i) 
-       sigma%gtr%t(i) =(U**2)*(fg0%gtr%t(i)**2)*fg0%less%t(-i)
+    fg0%less%t =  f_fft_gf_rw2rt(fg0%less%w)*dw_/pi2
+    fg0%gtr%t  =  f_fft_gf_rw2rt(fg0%gtr%w)*dw_/pi2
+    do i=1,M
+       sigma%less%t(i)=Uloc*Uloc*(fg0%less%t(i)**2)*fg0%gtr%t(M-i+1) 
+       sigma%gtr%t(i) =Uloc*Uloc*(fg0%gtr%t(i)**2)*fg0%less%t(M-i+1)
        sigma%ret%t(i) =heaviside(t_(i))*(sigma%gtr%t(i)-sigma%less%t(i))
     enddo
     if(heaviside(0.d0)==1.d0)sigma%ret%t(0)=sigma%ret%t(0)/2.d0 
-    call fftgf_rt2rw(sigma%ret%t,sigma%ret%w,M) ; sigma%ret%w=dt_*sigma%ret%w
-    !call fftgf_rw2rt(fg0%less%w,fg0%less%t,Lw);   fg0%less%t=xi*dw_*fg0%less%t
-    !call fftgf_rw2rt(fg0%gtr%w ,fg0%gtr%t ,Lw);   fg0%gtr%t =xi*dw_*fg0%gtr%t
-    ! fg0%ret%t=ret_component_t(fg0%gtr%t,fg0%less%t,t,Lw)
-    ! do i=-Lw,Lw
-    !    sigma%less%t(i)=(U**2)*(fg0%less%t(i)**2)*fg0%gtr%t(-i)
-    !    sigma%gtr%t(i) =(U**2)*(fg0%gtr%t(i)**2)*fg0%less%t(-i)
-    ! enddo
-    ! sigma%ret%t=ret_component_t(sigma%gtr%t,sigma%less%t,t,Lw)
-    ! call fftgf_rt2rw(sigma%ret%t,sigma%ret%w,Lw); sigma%ret%w= dt_*sigma%ret%w
-  end subroutine simpurity
-  !*******************************************************************
-  !*******************************************************************
-  !*******************************************************************
+    sigma%ret%w = f_fft_sigma_rt2rw(sigma%ret%t)*dt_
+    sigma_=sigma%ret%w
+    loop=loop+1
+    deallocate(wr_,t_)
+  end function ipt_solve_keldysh
 
 
 
 
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : 
+  !+-------------------------------------------------------------------+
+  function ipt_solve_keldysh_sc(fg0_,delta,wmax_) result(sigma_)
+    complex(8),dimension(:,:)                       :: fg0_
+    complex(8),dimension(size(fg0_,1),size(fg0_,2)) :: sigma_
+    real(8)                                         :: delta,wmax_,tmax_,nf
+    integer                                         :: i
+    real(8)                                         :: A,B
+    M=size(fg0_,2)
+    if(loop==1)then
+       if(.not.fg0k(1)%status)  call allocate_gf(fg0k(1),M)
+       if(.not.fg0k(2)%status)  call allocate_gf(fg0k(2),M)
+       if(.not.calG11%status)  call allocate_gf(calG11,M)
+       if(.not.calG22%status)  call allocate_gf(calG22,M)
+       if(.not.calF12%status)  call allocate_gf(calF12,M)
+       if(.not.calF21%status)  call allocate_gf(calF21,M)
+       if(.not.sk(1)%status)call allocate_gf(sk(1),M)
+       if(.not.sk(2)%status)call allocate_gf(sk(2),M)
+    endif
 
+    dt_       = pi/wmax_
+    tmax_     = dt_*M/2
+    allocate(wr_(M),t_(M))
+    wr_  = linspace(-wmax_,wmax_,M,mesh=dw_)
+    t_   = linspace(-tmax_+dt_,tmax_,M,mesh=dt_)
 
-  ! !+-------------------------------------------------------------------+
-  ! !PROGRAM  : 
-  ! !TYPE     : Subroutine
-  ! !PURPOSE  : 
-  ! !COMMENT  : 
-  ! !+-------------------------------------------------------------------+
-  ! subroutine get_gloc_keldysh
-  !   complex(8) :: zeta,sqroot,ifg
-  !   real(8)    :: w
-  !   integer    :: ik
-  !   fgk%ret%w=zero
-  !   do i=-L,L
-  !      w = wr(i);zeta=cmplx(w,eps)-sigma%ret%w(i)
-  !      ifg=zero
-  !      do ik=1,Lk
-  !         ifg=ifg+wt(ik)/(zeta-epsik(ik))
-  !      enddo
-  !      fgk%ret%w(i)=ifg
-  !   enddo
-  ! end subroutine get_gloc_keldysh
-  ! !*******************************************************************
-  ! !*******************************************************************
-  ! !*******************************************************************
+    fg0k(1)=zero ; fg0k(2)=zero
+    do i=1,M
+       A = -dimag(fg0_(1,i))/pi
+       B = -dimag(fg0_(2,i))/pi
+       nf= fermi(wr_(i),beta)
+       fg0k(1)%less%w(i) = pi2*xi*nf*A
+       fg0k(1)%gtr%w(i)  = pi2*xi*(nf-1.d0)*A
+       fg0k(2)%less%w(i) = pi2*xi*nf*B       
+       fg0k(2)%gtr%w(i)  = pi2*xi*(nf-1.d0)*B
+    enddo
+    !
+    calG11%less%w = fg0k(1)%less%w    
+    calG11%gtr%w = fg0k(1)%gtr%w    
+    forall(i=1:M)calG22%less%w(i) = -(fg0k(1)%gtr%w(M+1-i))
+    forall(i=1:M)calG22%gtr%w(i) = -(fg0k(1)%less%w(M+1-i))
+    calF12%less%w   = -conjg(fg0k(2)%less%w)
+    calF12%gtr%w   =  fg0k(2)%gtr%w
+    calF21%less%w   = fg0k(2)%less%w
+    calF21%gtr%w   = -conjg(fg0k(2)%gtr%w)
+    !
+    calG11%less%t = f_fft_gf_rw2rt(calG11%less%w)*dw_/pi2
+    calG11%gtr%t  = f_fft_gf_rw2rt(calG11%gtr%w)*dw_/pi2
+    calG22%less%t = f_fft_gf_rw2rt(calG22%less%w)*dw_/pi2
+    calG22%gtr%t  = f_fft_gf_rw2rt(calG22%gtr%w)*dw_/pi2
+    calF12%less%t = f_fft_gf_rw2rt(calF12%less%w)*dw_/pi2
+    calF12%gtr%t  = f_fft_gf_rw2rt(calF12%gtr%w)*dw_/pi2
+    calF21%less%t = f_fft_gf_rw2rt(calF21%less%w)*dw_/pi2
+    calF21%gtr%t  = f_fft_gf_rw2rt(calF21%gtr%w)*dw_/pi2
 
+    do i=1,M 
+       sk(1)%less%t(i) = Uloc*Uloc*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(M-i+1)
+       sk(1)%gtr%t(i)  = Uloc*Uloc*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(M-i+1)
+       sk(2)%less%t(i) = Uloc*Uloc*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(M-i+1)
+       sk(2)%gtr%t(i)  = Uloc*Uloc*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(M-i+1)
+       sk(1)%ret%t(i)  = heaviside(t_(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
+       sk(2)%ret%t(i)  = heaviside(t_(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
+    enddo
+    if(heaviside(0.d0)==1.d0)sk(1)%ret%t(0)=sk(1)%ret%t(0)/2.d0 
+    if(heaviside(0.d0)==1.d0)sk(2)%ret%t(0)=sk(2)%ret%t(0)/2.d0
+    !
+    sk(1)%ret%w = f_fft_sigma_rt2rw(sk(1)%ret%t)*dt_
+    sk(2)%ret%w = f_fft_sigma_rt2rw(sk(2)%ret%t)*dt_
 
-  ! !+-------------------------------------------------------------------+
-  ! !PROGRAM  : 
-  ! !TYPE     : Subroutine
-  ! !PURPOSE  : 
-  ! !COMMENT  : 
-  ! !+-------------------------------------------------------------------+
-  ! subroutine update_g0_keldysh(gf_)
-  !   complex(8),dimension(-L:L),optional :: gf_
-  !   complex(8),dimension(-L:L)          :: gf
-  !   !Update Keldysh components of the Weiss Field:
-  !   if(present(gf_))then
-  !      gf=gf_
-  !   else
-  !      gf=one/(one/fgk%ret%w + sigma%ret%w)
-  !   endif
-  !   !Update Keldysh components of the Weiss Field:
-  !   fgk0%less%w=less_component_w(gf,wr,beta)
-  !   fgk0%gtr%w =gtr_component_w(gf,wr,beta)
-  !   return
-  ! end subroutine update_g0_keldysh
-  ! !*******************************************************************
-  ! !*******************************************************************
-  ! !*******************************************************************
+    sigma_(1,:) = sk(1)%ret%w
+    sigma_(2,:) = -delta + sk(2)%ret%w
 
-
-
-
-
-
-
-  ! !+-------------------------------------------------------------------+
-  ! !PROGRAM  : 
-  ! !TYPE     : Subroutine
-  ! !PURPOSE  : 
-  ! !COMMENT  : 
-  ! !+-------------------------------------------------------------------+
-  ! subroutine print_out()
-  !   real(8) :: nimp
-  !   fg%ret%w = one/(one/fg0%ret%w - sigma%ret%w)
-  !   call getGmats(wr,fg%ret%w,gf%iw,beta)
-  !   call fftgf_iw2tau(gf%iw,gf%tau,beta)
-  !   nimp=-2.d0*gf%tau(L)
-  !   call splot("nVSiloop.ipt"//trim(adjustl(trim(label))),iloop,nimp,append=TT)
-  !   call splot('Sret_t.ipt'//trim(adjustl(trim(label))),t,exa*sigma%ret%t,append=printf)
-  !   call splot('Sgtr_t.ipt'//trim(adjustl(trim(label))),t,exa*sigma%gtr%t,append=printf)
-  !   call splot('Sless_t.ipt'//trim(adjustl(trim(label))),t,exa*sigma%less%t,append=printf)
-  !   call splot('G0ret_t.ipt'//trim(adjustl(trim(label))),t,exa*fg0%ret%t,append=printf)
-  !   call splot('Gret_realw.ipt'//trim(adjustl(trim(label))),wr,fg%ret%w,append=printf)
-  !   call splot('Sret_realw.ipt'//trim(adjustl(trim(label))),wr,sigma%ret%w,append=printf)
-  !   call splot('G0ret_realw.ipt'//trim(adjustl(trim(label))),wr,fg0%ret%w,append=printf)
-  !   call splot('DOS.ipt'//trim(adjustl(trim(label))),wr,-aimag(fg%ret%w)/pi,append=printf)
-  !   call getGmats(wr,fg0%ret%w,gf0%iw,beta)
-  !   call getGmats(wr,sigma%ret%w,sf%iw,beta)
-  !   call splot('GM_iw.ipt'//trim(adjustl(trim(label))),wm,gf%iw,append=printf)
-  !   call splot('G0M_iw.ipt'//trim(adjustl(trim(label))),wm,gf0%iw,append=printf)
-  !   call splot('SigmaM_iw.ipt'//trim(adjustl(trim(label))),wm,sf%iw,append=printf)
-  ! end subroutine print_out
-  ! !*******************************************************************
-  ! !*******************************************************************
-  ! !*******************************************************************
-
-
-
-
-  ! !+-------------------------------------------------------------------+
-  ! !PROGRAM  : 
-  ! !TYPE     : Subroutine
-  ! !PURPOSE  : 
-  ! !COMMENT  : 
-  ! !+-------------------------------------------------------------------+
-  ! subroutine get_energy_keldysh(logic,totE)
-  !   real(8),optional   :: totE
-  !   logical            :: logic
-  !   real(8)            :: nimp,docc,Ekin,Epot,nk(Lk)
-  !   integer            :: Lm
-  !   complex(8),allocatable :: gf(:),sf(:),gff(:)
-  !   real(8),allocatable    :: gtau(:)
-
-  !   Lm=int(L*beta/pi);if(beta<1)Lm=L
-  !   allocate(gf(Lm),sf(Lm),gtau(0:L),gff(L))
-
-  !   call getGmats(wr,sigma%ret%w,sf,beta)
-  !   call getGmats(wr,fg%ret%w,gf,beta)
-
-  !   call fftgf_iw2tau(gf,gtau,beta)
-  !   nimp=-2.d0*gtau(L)
-
-  !   !Energy && k-dispersed quantities
-  !   Ekin=0.0
-  !   do ik=1,Lk
-  !      gff=zero
-  !      do i=1,L
-  !         w=pi/beta*dble(2*i-1)
-  !         gff(i)=one/(xi*w - sorted_epsik(ik) - sf(i))
-  !      enddo
-  !      call fftgf_iw2tau(gff,gtau,beta)
-  !      nk(ik)=-gtau(L) 
-  !      Ekin=Ekin + wt(ik)*nk(ik)*epsik(ik)
-  !   enddo
-
-  !   Epot=dot_product(conjg(sf(:)),gf(:))/beta/2.0
-  !   docc=0.5*nimp  - 0.25d0
-  !   if(u/=0.0)docc = Epot/U + 0.5*nimp - 0.25d0
-  !   if(present(totE))totE=Ekin+Epot
-  !   if(logic)then
-  !      call splot("nkVSepsik.ipt",sorted_epsik(1:Lk),nk(1:Lk))
-  !      call splot("EtotVS"//trim(extension),xout,Ekin+Epot,append=TT)
-  !      call splot("EkinVS"//trim(extension),xout,Ekin,append=TT)
-  !      call splot("EpotVS"//trim(extension),xout,Epot,append=TT)
-  !      call splot("doccVS"//trim(extension),xout,docc,append=TT)
-  !   end if
-  !   deallocate(gf,sf,gtau,gff)
-  ! end subroutine get_energy_keldysh
-  ! !*******************************************************************
-  ! !*******************************************************************
-  ! !*******************************************************************
-
+    deallocate(wr_,t_)
+  end function ipt_solve_keldysh_sc
 
 
 
