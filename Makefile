@@ -1,11 +1,12 @@
 ##HUBBARD MODELS 
 #EXE=ipt_hm_matsubara
+EXE=mpt_hm_matsubara
 #EXE=ipt_hm_real
 #EXE=ipt_hm_keldysh
 ##ATTRACTIVE HUBBARD
 #EXE=ipt_ahm_matsubara
 #EXE=ipt_ahm_real
-EXE=ipt_ahm_keldysh
+#EXE=ipt_ahm_keldysh
 
 DIR=./drivers
 DIREXE= $(HOME)/.bin
