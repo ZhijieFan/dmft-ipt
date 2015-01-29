@@ -4,11 +4,12 @@
 !###############################################################
 module IPT_MATSUBARA
   USE IPT_VARS_GLOBAL
-  USE CONSTANTS, only: xi,pi,one
-  USE ARRAYS, only:arange
-  USE FUNCTIONS, only: bethe_lattice
-  USE FFTGF
-  USE DMFT_TOOLS, only:fft_get_density
+  USE SF_LINALG, only: matrix_inverse
+  USE SF_CONSTANTS, only: xi,pi,one
+  USE SF_ARRAYS, only:arange
+  USE SF_SPECIAL, only: bethe_lattice
+  USE DMFT_FFTGF
+  USE DMFT_FFTAUX, only:fft_get_density
   implicit none
   private
 
@@ -82,14 +83,14 @@ contains
     real(8)                            :: n
     Lf=size(fg0_iw)
     n = 0.5d0
-    S0=Uloc*(n-0.5d0)
-    S1=Uloc*Uloc*n*(1d0-n)
+    S0=Uloc(1)*(n-0.5d0)
+    S1=Uloc(1)*Uloc(1)*n*(1d0-n)
     C0=0d0
     C1=1d0
     C2=xmu-S0
     C3=S1+(xmu-S0)*(xmu-S0)
     fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
-    forall(i=1:Lf)sigma_tau(i)=Uloc*Uloc*fg0_tau(i)*fg0_tau(Lf-i+1)*fg0_tau(i)
+    forall(i=1:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i+1)*fg0_tau(i)
     sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
   end function solve_ipt_matsubara
 
@@ -103,22 +104,22 @@ contains
     real(8)                            :: A,B,A1,A2,B1,B2
     integer                            :: i,Lf
     Lf=size(fg0_iw)
-    S0=Uloc*(n-0.5d0)
-    S1=Uloc*Uloc*n*(1d0-n)
+    S0=Uloc(1)*(n-0.5d0)
+    S1=Uloc(1)*Uloc(1)*n*(1d0-n)
     C0=0d0
     C1=1d0
     C2=xmu-S0
     C3=S1+(xmu-S0)*(xmu-S0)
     fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
-    forall(i=1:Lf)sigma_tau(i)=Uloc*Uloc*fg0_tau(i)*fg0_tau(Lf-i+1)*fg0_tau(i)
+    forall(i=1:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i+1)*fg0_tau(i)
     sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
     A1= n*(1.d0-n)
     A2= n0*(1.d0-n0)
     A = A1/A2
-    B1 = (xmu0-xmu) + Uloc*(1.d0-2.d0*n)
-    B2 = n0*(1.d0-n0)*Uloc*Uloc
+    B1 = (xmu0-xmu) + Uloc(1)*(1.d0-2.d0*n)
+    B2 = n0*(1.d0-n0)*Uloc(1)*Uloc(1)
     B  = B1/B2
-    sigma_iw = Uloc*(n-0.5d0) + A*sigma_iw/(1.d0-B*sigma_iw)
+    sigma_iw = Uloc(1)*(n-0.5d0) + A*sigma_iw/(1.d0-B*sigma_iw)
   end function solve_mpt_matsubara
 
 
@@ -156,8 +157,8 @@ contains
     calFt   = f_fft_gf_iw2tau(calF,beta,[0d0,0d0,0d0,0d0])
     !Get the 2nd-order Sigma:
     forall(i=1:LM)
-       sigmat(i)= Uloc*Uloc*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
-       selft(i) =-Uloc*Uloc*(calFt(i)**2           - calG11t(i)*calG22t(i))*calFt(i)
+       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
+       selft(i) =-Uloc(1)*Uloc(1)*(calFt(i)**2           - calG11t(i)*calG22t(i))*calFt(i)
     end forall
     sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta,[0d0,0d0])
     sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta,[0d0,0d0]) - delta
@@ -205,15 +206,15 @@ contains
     calFt   = f_fft_gf_iw2tau(calF,beta,[0d0,0d0,0d0,0d0])
     !Get the 2nd-order Sigma:
     forall(i=1:LM)
-       sigmat(i)= Uloc*Uloc*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
-       selft(i)= -Uloc*Uloc*(calFt(i)**2 - calG11t(i)*calG22t(i))*calFt(i)
+       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
+       selft(i)= -Uloc(1)*Uloc(1)*(calFt(i)**2 - calG11t(i)*calG22t(i))*calFt(i)
     end forall
     sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta,[0d0,0d0])
     sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta,[0d0,0d0])
     !
-    A=Uloc*Uloc*n*(1.d0-n)-delta**2
-    B=Uloc*Uloc*n0*(1.d0-n0)-delta0**2
-    sigma_iw(1,:) =-Uloc*(n-0.5d0) + sigma_iw(1,:)*A/B
+    A=Uloc(1)*Uloc(1)*n*(1.d0-n)-delta**2
+    B=Uloc(1)*Uloc(1)*n0*(1.d0-n0)-delta0**2
+    sigma_iw(1,:) =-Uloc(1)*(n-0.5d0) + sigma_iw(1,:)*A/B
     sigma_iw(2,:) =-delta       + sigma_iw(2,:)*A/B
     !
     open(11,file="Sigma_tau.ipt",access="append")
@@ -287,7 +288,7 @@ contains
     epot = ipt_measure_potential_energy_matsubara(Sigma,Weiss)
     ehar = ipt_measure_hartree_energy_matsubara(Sigma,Weiss)
     ipt_docc = 0.25d0
-    if(uloc > 0d0)ipt_docc = epot/uloc - ehar/uloc
+    if(uloc(1) > 0d0)ipt_docc = epot/uloc(1) - ehar/uloc(1)
   end function ipt_measure_docc_matsubara
 
   !PURPOSE: measure all energies for the Bethe lattice
@@ -339,7 +340,7 @@ contains
     Green = one/Weiss - Sigma
     Green = one/Green
     n = fft_get_density(Green,beta)
-    ipt_Ehartree = -Uloc*n + Uloc*0.25d0 
+    ipt_Ehartree = -Uloc(1)*n + Uloc(1)*0.25d0 
   end function ipt_measure_hartree_energy_matsubara
 
   !PURPOSE: measure kinetic energy

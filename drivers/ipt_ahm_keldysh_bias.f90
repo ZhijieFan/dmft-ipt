@@ -3,7 +3,7 @@ program ahmk
   USE DMFT_TOOLS
   USE SCIFOR
   implicit none
-  integer                :: i,ik,Nx,Lk,iloop,Lm,p,q,Lf,Lmts
+  integer                :: i,ik,Lk,iloop,Lm,p,q,Lf,Lmts,L
   logical                :: converged
   complex(8)             :: det,zeta1,zeta2,x1,x2
   real(8)                :: delta,n,A,B,nf,nfL,nfR,ekin,dzeta1,dzeta2,D,dt,fmesh
@@ -27,9 +27,10 @@ program ahmk
   call parse_input_variable(poles,"POLES",'inputIPT.in',default=.false.)
   call parse_input_variable(octype,"OCTYPE",'inputIPT.in',default=.false.)
   call parse_input_variable(thermo,"THERMO",'inputIPT.in',default=.false.)
+  call parse_input_variable(spole,"SPOLE",'inputIPT.in',default=.false.)
+  call parse_input_variable(L,"L",'inputIPT.in',default=10000)
   call parse_input_variable(Lf,"LF",'inputIPT.in',default=4096)
   call parse_input_variable(Lmts,"Lmts",'inputIPT.in',default=4096)
-  call parse_cmd_variable(spole,"SPOLE",default=.false.)
 
   call read_input("inputIPT.in")
 
@@ -38,7 +39,7 @@ program ahmk
   ! wmax=20.d0
   ! nloop=200
   ! eps=1.d-3
-
+  D=1d0
   allocate(fg(2,L))
   allocate(sigma(2,L))
   allocate(wf0(2,L))
@@ -62,6 +63,50 @@ program ahmk
   call get_initial_sigma
 
   iloop=0    ; converged=.false.
+
+
+  if(thermo)then
+     !GET Matsubara functions (not working well: aka only at large enough temperature, 
+     !because of the finite broadening you can not resolve infinitely small energies/temp)
+     converged=.true.
+     beta=1000.d0
+     fg=zero
+     zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
+     do i=1,L
+        zeta1 = zeta(i)
+        zeta2 = conjg(zeta(L+1-i))
+        x1 = 0.5d0*((zeta1+zeta2) + sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+        x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+        fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+        fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+     enddo
+     delta=-uloc(1)*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
+     n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
+     allocate(wrx(Lmts),fgm(2,Lmts),fg0m(2,Lmts),sm(2,Lmts))
+     wrx = pi/beta*real(2*arange(1,Lmts)-1,8)
+     allocate(wt(Lk),epsik(Lk),nk(Lk))
+     call bethe_lattice(wt,epsik,Lk,1d0)
+     write(*,*)"Get Matsubara GF:",Lmts
+     print*,'G(iw)'
+     call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
+     print*,'F(iw)'
+     call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
+     print*,'Sigma(iw)'
+     call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
+     print*,'S(iw)'
+     call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
+     fgm(2,:)=dreal(fgm(2,:))
+     sm(2,:)=dreal(sm(2,:))-delta
+     call splot("G_iw.last",wrx,fgm(1,:))
+     call splot("F_iw.last",wrx,fgm(2,:))
+     call splot("G0_iw.last",wrx,fg0m(1,:))
+     call splot("F0_iw.last",wrx,fg0m(2,:))
+     call splot("Sigma_iw.last",wrx,sm(1,:))
+     call splot("Self_iw.last",wrx,sm(2,:))
+     call get_sc_internal_energy(Lmts,wrx,fgm,sm,L,wr,fg)
+     stop
+  endif
+
 
   if(poles)then
      converged=.true.
@@ -125,48 +170,6 @@ program ahmk
 
 
 
-  if(thermo)then
-     !GET Matsubara functions (not working well: aka only at large enough temperature, 
-     !because of the finite broadening you can not resolve infinitely small energies/temp)
-     converged=.true.
-     beta=1000.d0
-     fg=zero
-     zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
-     do i=1,L
-        zeta1 = zeta(i)
-        zeta2 = conjg(zeta(L+1-i))
-        x1 = 0.5d0*((zeta1+zeta2) + sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
-        x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
-        fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
-        fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
-     enddo
-     delta=-uloc*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
-     n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
-     allocate(wrx(Lmts),fgm(2,Lmts),fg0m(2,Lmts),sm(2,Lmts))
-     wrx = pi/beta*real(2*arange(1,Lmts)-1,8)
-     write(*,*)"Get Matsubara GF:",Lmts
-     print*,'G(iw)'
-     call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
-     print*,'F(iw)'
-     call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
-     print*,'Sigma(iw)'
-     call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
-     print*,'S(iw)'
-     call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
-     fgm(2,:)=dreal(fgm(2,:))
-     sm(2,:)=dreal(sm(2,:))-delta
-     call splot("G_iw.last",wrx,fgm(1,:))
-     call splot("F_iw.last",wrx,fgm(2,:))
-     call splot("G0_iw.last",wrx,fg0m(1,:))
-     call splot("F0_iw.last",wrx,fg0m(2,:))
-     call splot("Sigma_iw.last",wrx,sm(1,:))
-     call splot("Self_iw.last",wrx,sm(2,:))
-     Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk),nk(Lk))
-     call bethe_lattice(wt,epsik,Lk,D)
-     call get_sc_internal_energy(Lmts,wrx,fgm,sm,L,wr,fg)
-     stop
-  endif
-
 
 
 
@@ -179,7 +182,7 @@ program ahmk
      call cubic_spline(wr,sigma(2,:),wrx,dummy(2,:))
      call splot("Sigma_realw_oc.last",wrx,dummy(1,:))
      call splot("Self_realw_oc.last",wrx,dummy(2,:))
-     Lk=Nx**2 ; allocate(wt(Lk),epsik(Lk))
+     allocate(wt(Lk),epsik(Lk))
      call bethe_lattice(wt,epsik,Lk,D)
      call get_sc_optical_conductivity(Lf,wrx,dummy)  
      deallocate(wt,epsik,wrx,dummy)
@@ -204,7 +207,7 @@ program ahmk
         fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
         fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
      enddo
-     delta=-uloc*trapz(fmesh,dimag(fg(2,:))*istep(wr))/pi
+     delta=-uloc(1)*trapz(fmesh,dimag(fg(2,:))*istep(wr))/pi
      n=-trapz(fmesh,dimag(fg(1,:))*istep(wr))/pi
 
      !GET THE WEISS FIELD \calG0^-1(w)
@@ -212,7 +215,7 @@ program ahmk
      ! wf(2)=calF0^-1 =-F(-w) /(G(w)G*(-w) + F(w)F(-w)) + S(w)
      do i=1,L
         det     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
-        wf0(1,i)= conjg(fg(1,L+1-i))/det  + sigma(1,i)   +  uloc*(n-0.5d0)
+        wf0(1,i)= conjg(fg(1,L+1-i))/det  + sigma(1,i)   +  uloc(1)*(n-0.5d0)
         wf0(2,i)= fg(2,i)/det       + conjg(sigma(2,L+1-i))   + delta
      end do
      do i=1,L
@@ -256,11 +259,11 @@ program ahmk
      call fft_gf_rw2rt(calF21%gtr%w,calF21%gtr%t)   ; calF21%gtr%t =fmesh/pi2*calF21%gtr%t
 
      do i=-Lm,Lm 
-        sk(1)%less%t(i) = Uloc**2*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(-i)
-        sk(1)%gtr%t(i) =  Uloc**2*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(-i)
+        sk(1)%less%t(i) = Uloc(1)**2*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(-i)
+        sk(1)%gtr%t(i) =  Uloc(1)**2*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(-i)
         !
-        sk(2)%less%t(i) = Uloc**2*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(-i)
-        sk(2)%gtr%t(i) =  Uloc**2*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(-i)
+        sk(2)%less%t(i) = Uloc(1)**2*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(-i)
+        sk(2)%gtr%t(i) =  Uloc(1)**2*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(-i)
         !
         sk(1)%ret%t(i) =heaviside(t(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
         sk(2)%ret%t(i) =heaviside(t(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
@@ -278,7 +281,7 @@ program ahmk
      !if(printf)call splot("observables.ipt",vbias,delta,xmu,u,n,beta,dble(iloop),append=.true.)
   enddo
 
-  call splot("observables.last",vbias,delta,xmu,uloc,n,beta,dble(iloop))
+  call splot("observables.last",vbias,delta,xmu,uloc(1),n,beta,dble(iloop))
   call splot("Sigma_realw.restart",wr,sigma(1,:))
   call splot("Self_realw.restart",wr,sigma(2,:))
 
@@ -506,7 +509,7 @@ contains
     Epot = sum(fg(1,:)*sigma(1,:) + fg(2,:)*sigma(2,:))/beta*2.d0
 
     docc = 0.5d0*n**2
-    if(uloc > 0.01d0)docc=-Epot/uloc + n - 0.25d0
+    if(uloc(1) > 0.01d0)docc=-Epot/uloc(1) + n - 0.25d0
 
     Eint=kin+Epot
 
@@ -516,7 +519,7 @@ contains
 
     write(*,*)"Asymptotic Self-Energies",Sigma_infty, S_infty
     write(*,*)"n,delta",n,delta
-    write(*,*)"Dn% ,Ddelta%",(n-0.5d0*checkdens)/n,(delta + uloc*checkP)/delta ! u is positive
+    write(*,*)"Dn% ,Ddelta%",(n-0.5d0*checkdens)/n,(delta + uloc(1)*checkP)/delta ! u is positive
     write(*,*)'========================================='
     write(*,*)"Kinetic energy",kin
     write(*,*)'========================================='
@@ -535,7 +538,7 @@ contains
     write(100,"(11A21)")"1vbias","2u","3beta","4n","5kin","6docc","7Ds","8Epot","9Eint"
     close(100)
     open(200,file="thermodynamics.ipt")
-    write(200,"(11F21.12)")vbias,uloc,beta,n,kinsim,docc,Ds,Epot,Eint
+    write(200,"(11F21.12)")vbias,uloc(1),beta,n,kinsim,docc,Ds,Epot,Eint
     close(200)
     return 
   end subroutine get_sc_internal_energy

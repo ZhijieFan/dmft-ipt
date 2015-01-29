@@ -7,8 +7,8 @@
 !###############################################################
 module IPT_REAL_NORMAL
   USE IPT_VARS_GLOBAL
-  USE FUNCTIONS, only: fermi
-  USE INTEGRATE, only: kronig
+  USE SF_SPECIAL, only: fermi
+  USE SF_INTEGRATE, only: kronig
   implicit none
   private
   real(8),dimension(:),allocatable    :: A0m,A0p,P1,P2
@@ -83,10 +83,10 @@ contains
     A1 = n*(1.d0-n)
     A2 = n0*(1.d0-n0)
     A  = A1/A2
-    B1 = (xmu0-xmu) + Uloc*(1.d0-2.d0*n)
-    B2 = n0*(1.d0-n0)*Uloc*Uloc
+    B1 = (xmu0-xmu) + Uloc(1)*(1.d0-2.d0*n)
+    B2 = n0*(1.d0-n0)*Uloc(1)*Uloc(1)
     B  = B1/B2
-    sigma_ = Uloc*(n-0.5d0) + A*sigma/(1.d0-B*sigma)
+    sigma_ = Uloc(1)*(n-0.5d0) + A*sigma/(1.d0-B*sigma)
     loop=loop+1
   end function solve_mpt_sopt
 
@@ -110,7 +110,7 @@ contains
              sum2=sum2+A0m(MM-iz+1)*P2(iy)*mesh
           end if
        enddo
-       imS(ix)=-Uloc*Uloc*(sum1+sum2)*pi
+       imS(ix)=-Uloc(1)*Uloc(1)*(sum1+sum2)*pi
     enddo
     reS = kronig(imS,wr,size(ImS))
     sigma = reS + xi*imS
@@ -169,8 +169,8 @@ END MODULE IPT_REAL_NORMAL
 !-----------------------------------------------------------------------
 MODULE IPT_REAL_SUPERC
   USE IPT_VARS_GLOBAL
-  USE FUNCTIONS, only: fermi
-  USE INTEGRATE, only: kronig
+  USE SF_SPECIAL, only: fermi
+  USE SF_INTEGRATE, only: kronig
   implicit none
   private
 
@@ -243,9 +243,9 @@ contains
     call getAs
     call getPolarization
     call Sopt
-    A = Uloc*Uloc*n*(1.d0-n)-delta**2
-    B = Uloc*Uloc*n0*(1.d0-n0)-delta0**2
-    sigma_(1,:) = -Uloc*(n-0.5d0)+ sigma(1,:)*A/B
+    A = Uloc(1)*Uloc(1)*n*(1.d0-n)-delta**2
+    B = Uloc(1)*Uloc(1)*n0*(1.d0-n0)-delta0**2
+    sigma_(1,:) = -Uloc(1)*(n-0.5d0)+ sigma(1,:)*A/B
     sigma_(2,:) = -delta         + sigma(2,:)*A/B
     loop=loop+1
   end function solve_mpt_sc_sopt
@@ -285,8 +285,8 @@ contains
              sumT2=sumT2 + A0p22(Lm+1-iz)*T2(iy)*mesh
           endif
        enddo
-       imSig(ix)= -Uloc*Uloc*(sumP1 + sumP2 - sumQ1 - sumQ2)*pi
-       imS(ix)  = -Uloc*Uloc*(sumR1 + sumR2 - sumT1 - sumT2)*pi
+       imSig(ix)= -Uloc(1)*Uloc(1)*(sumP1 + sumP2 - sumQ1 - sumQ2)*pi
+       imS(ix)  = -Uloc(1)*Uloc(1)*(sumR1 + sumR2 - sumT1 - sumT2)*pi
     enddo
     reSig = kronig(imSig,wr,size(imSig))
     reS   = kronig(imS,wr,size(imS))
