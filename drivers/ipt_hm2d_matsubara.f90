@@ -4,18 +4,20 @@ program hmipt_matsubara
   USE DMFT_TOOLS
 
   implicit none
-  logical                :: converged,check
-  real(8)                :: wmix,D
-  integer                :: i,iloop,L
-  complex(8)             :: zeta
-  complex(8),allocatable :: fg(:),fg0(:),sigma(:),GFold(:)
-  real(8),allocatable    :: wm(:)
-  real(8)                :: n,docc,z,energy(3)
-  character(len=24)      :: finput
+  logical                          :: converged,check
+  real(8)                          :: wmix,ts
+  integer                          :: i,iloop,L,Lk,Nx
+  complex(8)                       :: zeta
+  complex(8),allocatable           :: fg(:),fg0(:),sigma(:),GFold(:)
+  real(8),allocatable              :: wm(:)
+  real(8)                          :: n,docc,z,energy(3)
+  character(len=24)                :: finput
+  real(8),dimension(:),allocatable :: kxgrid,kygrid,Wtk,Epsik
 
   call parse_cmd_variable(finput,"finput",default="inputIPT.conf")
-  call parse_input_variable(D,"wband",finput,default=1d0)
+  call parse_input_variable(ts,"ts",finput,default=0.5d0)
   call parse_input_variable(L,"L",finput,default=4096)
+  call parse_input_variable(Nx,"NX",finput,default=21)
   call parse_input_variable(wmix,"WMIX",finput,default=0.75d0)
   call read_input(finput)
 
@@ -29,6 +31,19 @@ program hmipt_matsubara
   allocate(wm(L))
   wm(:)  = pi/beta*(2*arange(1,L)-1)
 
+  !BUILD THE LATTICE STRUCTURE (use tight_binding):
+  Lk = Nx*Nx
+  allocate(Epsik(Lk),Wtk(Lk))
+  allocate(kxgrid(Nx),kygrid(Nx))
+  write(*,*) "Using Nk_total="//txtfy(Lk)
+  kxgrid = kgrid(Nx)
+  kygrid = kgrid(Nx)
+  Epsik  = build_hk_model(hk_model,kxgrid,kygrid,[0d0])
+  Wtk    = 1d0/Lk
+  call write_hk_w90("Hk2d.dat",1,1,0,1,dcmplx(Epsik,0d0),kxgrid,kygrid,[0d0])
+  call get_free_dos(Epsik,Wtk)
+
+
   !get or read first sigma 
   call  get_inital_sigma(Sigma,"Sigma_iw.ipt")
 
@@ -40,7 +55,7 @@ program hmipt_matsubara
      !SELF-CONSISTENCY:
      do i=1,L
         zeta = xi*wm(i) - sigma(i)
-        fg(i) = gfbethe(wm(i),zeta,D)
+        fg(i) = sum_overk_zeta(zeta,epsik,wtk)
      enddo
      n   = fft_get_density(fg,beta)
      GFold=fg0
@@ -61,9 +76,21 @@ program hmipt_matsubara
   call splot("G_iw.ipt",wm,fg)
   call splot("G0_iw.ipt",wm,fg0)
   call splot("Sigma_iw.ipt",wm,sigma)
-  energy = ipt_measure_energy_matsubara(Sigma,fg0,100,D)
+  energy = ipt_measure_energy_matsubara(Sigma,fg0,Epsik,Wtk)
   call splot("observables_last.ipt",n,z,docc,energy(1),energy(2),energy(3))
 contains
+
+
+  function hk_model(kpoint) result(hk)
+    real(8),dimension(:) :: kpoint
+    integer              :: N
+    real(8)              :: kx,ky
+    real(8)              :: hk
+    kx=kpoint(1)
+    ky=kpoint(2)
+    Hk = -2d0*ts*(cos(kx)+cos(ky))
+  end function hk_model
+
 
   subroutine get_inital_sigma(self,file)
     complex(8),dimension(:) :: self

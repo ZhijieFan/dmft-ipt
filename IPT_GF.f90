@@ -4,7 +4,7 @@
 !automatically set the correct dimensions.
 !###############################################################
 module IPT_GF
-  USE CONSTANTS, only: xi,pi
+  USE SF_CONSTANTS, only: xi,pi
   implicit none
   private 
 

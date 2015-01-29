@@ -1,9 +1,10 @@
 module IPT_KELDYSH
   use IPT_GF
   use IPT_VARS_GLOBAL
-  USE FFTGF
-  use FUNCTIONS
-  use ARRAYS
+  use SF_SPECIAL
+  use SF_ARRAYS
+  USE DMFT_FFTGF
+
   implicit none
   private
 
@@ -50,8 +51,8 @@ contains
     fg0%less%t =  f_fft_gf_rw2rt(fg0%less%w)*dw_/pi2
     fg0%gtr%t  =  f_fft_gf_rw2rt(fg0%gtr%w)*dw_/pi2
     do i=1,M
-       sigma%less%t(i)=Uloc*Uloc*(fg0%less%t(i)**2)*fg0%gtr%t(M-i+1) 
-       sigma%gtr%t(i) =Uloc*Uloc*(fg0%gtr%t(i)**2)*fg0%less%t(M-i+1)
+       sigma%less%t(i)=Uloc(1)*Uloc(1)*(fg0%less%t(i)**2)*fg0%gtr%t(M-i+1) 
+       sigma%gtr%t(i) =Uloc(1)*Uloc(1)*(fg0%gtr%t(i)**2)*fg0%less%t(M-i+1)
        sigma%ret%t(i) =heaviside(t_(i))*(sigma%gtr%t(i)-sigma%less%t(i))
     enddo
     if(heaviside(0.d0)==1.d0)sigma%ret%t(0)=sigma%ret%t(0)/2.d0 
@@ -121,10 +122,10 @@ contains
     calF21%gtr%t  = f_fft_gf_rw2rt(calF21%gtr%w)*dw_/pi2
 
     do i=1,M 
-       sk(1)%less%t(i) = Uloc*Uloc*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(M-i+1)
-       sk(1)%gtr%t(i)  = Uloc*Uloc*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(M-i+1)
-       sk(2)%less%t(i) = Uloc*Uloc*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(M-i+1)
-       sk(2)%gtr%t(i)  = Uloc*Uloc*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(M-i+1)
+       sk(1)%less%t(i) = Uloc(1)*Uloc(1)*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(M-i+1)
+       sk(1)%gtr%t(i)  = Uloc(1)*Uloc(1)*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(M-i+1)
+       sk(2)%less%t(i) = Uloc(1)*Uloc(1)*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(M-i+1)
+       sk(2)%gtr%t(i)  = Uloc(1)*Uloc(1)*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(M-i+1)
        sk(1)%ret%t(i)  = heaviside(t_(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
        sk(2)%ret%t(i)  = heaviside(t_(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
     enddo
