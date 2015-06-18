@@ -10,7 +10,7 @@ program hmipt_matsubara
   complex(8)                       :: zeta
   complex(8),allocatable           :: fg(:),fg0(:),sigma(:),GFold(:)
   real(8),allocatable              :: wm(:)
-  real(8)                          :: n,docc,z,energy(3)
+  real(8)                          :: n,docc,z,energy(3),h1,h2,hdc
   character(len=24)                :: finput
   real(8),dimension(:),allocatable :: kxgrid,kygrid,Wtk,Epsik
 
@@ -78,6 +78,18 @@ program hmipt_matsubara
   call splot("Sigma_iw.ipt",wm,sigma)
   energy = ipt_measure_energy_matsubara(Sigma,fg0,Epsik,Wtk)
   call splot("observables_last.ipt",n,z,docc,energy(1),energy(2),energy(3))
+
+  h1 = sum(Epsik)/Lk
+  h2 = sum(Epsik**2)/Lk
+  hdc= 0d0
+  open(free_unit(i),file="g0_header.ipt")
+  write(i,"(4F18.9)")xmu,h1,h2,hdc
+  close(i)
+
+  open(free_unit(i),file="sigma_header.ipt")
+  write(i,"(2F18.9)")uloc(1),n
+  close(i)
+
 contains
 
 

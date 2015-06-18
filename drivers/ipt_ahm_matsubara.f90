@@ -4,25 +4,26 @@ program hmipt_matsubara
   USE DMFT_TOOLS
   implicit none
 
-  integer                :: i,ik,Lk,iloop
+  integer                :: i,ik,Lk,iloop,L
   logical                :: converged
   complex(8)             :: zeta,zeta1,zeta2,cdet,x1,x2,zsqrt
   real(8)                :: n,delta,D
   !
-  complex(8),allocatable :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:),det(:)
+  complex(8),allocatable :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:),Gdet(:)
   real(8),allocatable    :: fgt(:,:)
   !
   real(8),allocatable    :: wt(:),epsik(:),wm(:)
 
-  call parse_input_variable(D,"wband","inputIPT.in",default=1d0)
-  call parse_input_variable(Lk,"Lk","inputIPT.in",default=1000)
-  call read_input("inputIPT.in")
+  call parse_input_variable(L,"L","inputIPT.conf",default=4096)
+  call parse_input_variable(D,"wband","inputIPT.conf",default=1d0)
+  call parse_input_variable(Lk,"Lk","inputIPT.conf",default=1000)
+  call read_input("inputIPT.conf")
 
   allocate(wm(L))
   wm  = pi/beta*(2*arange(1,L)-1)
 
   allocate(fg(2,L),fgt(2,L))
-  allocate(fg0(2,L),sigma(2,L),calG(2,L),det(L))
+  allocate(fg0(2,L),sigma(2,L),calG(2,L),Gdet(L))
 
   allocate(wt(Lk),epsik(Lk))
   call bethe_lattice(wt,epsik,Lk,D)
@@ -44,20 +45,20 @@ program hmipt_matsubara
            fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet
         enddo
      enddo
-     n = fft_get_density(fg(1,:),beta,[0d0,1d0,0d0,0d0])
-     delta = Uloc*fft_get_density(fg(2,:),beta,[0d0,0d0,0d0,0d0])
+     n = fft_get_density(fg(1,:),beta)!
+     delta = Uloc(1)*fft_get_density(fg(2,:),beta,[0d0,0d0,0d0,0d0])
 
-     det       = abs(fg(1,:))**2 + (fg(2,:))**2
-     fg0(1,:) =  conjg(fg(1,:))/det + sigma(1,:)
-     fg0(2,:) =  fg(2,:)/det        + sigma(2,:) + delta
+     Gdet       = abs(fg(1,:))**2 + (fg(2,:))**2
+     fg0(1,:) =  conjg(fg(1,:))/Gdet + sigma(1,:)
+     fg0(2,:) =  fg(2,:)/Gdet        + sigma(2,:) + delta
 
-     det       =  abs(fg0(1,:))**2 + (fg0(2,:))**2
-     calG(1,:) =  conjg(fg0(1,:))/det
-     calG(2,:) =  fg0(2,:)/det
+     Gdet      =  abs(fg0(1,:))**2 + (fg0(2,:))**2
+     calG(1,:) =  conjg(fg0(1,:))/Gdet
+     calG(2,:) =  fg0(2,:)/Gdet
 
-     write(*,"(3f14.9)",advance="no")2.d0*n,delta,delta/uloc
+     write(*,"(3f14.9)",advance="no")2*n,delta
      sigma =  ipt_solve_matsubara_sc(calG,delta)
-     converged = check_convergence(sigma(1,:)+sigma(2,:),eps=dmft_error,N1=Nsuccess,N2=Nloop)
+     converged = check_convergence(sigma(1,:)+sigma(2,:)+1.d-5,eps=dmft_error,N1=Nsuccess,N2=Nloop)
   enddo
 
   call splot("Sigma_iw.ipt",wm,sigma(1,:),append=.false.)
@@ -66,7 +67,7 @@ program hmipt_matsubara
   call splot("F_iw.ipt",wm,fg(2,:),append=.false.)
   call splot("calG_iw.ipt",wm,calG(1,:),append=.false.)
   call splot("calF_iw.ipt",wm,calG(2,:),append=.false.)
-  call splot("observables.ipt",uloc,beta,n,delta,append=.false.)
+  call splot("observables.ipt",uloc(1),beta,n,delta,append=.false.)
 
   call get_sc_internal_energy
 
@@ -161,8 +162,8 @@ contains
     Epot=zero
     Epot = sum(fg(1,:)*sigma(1,:) + fg(2,:)*sigma(2,:))/beta*2.d0
 
-    docc = 0.5d0*n**2
-    if(uloc > 0.01d0)docc=-Epot/uloc + n - 0.25d0
+    docc = n**2
+    if(uloc(1) > 0.01d0)docc=-Epot/uloc(1) + n - 0.25d0
 
 
     Eint=kin+Epot
