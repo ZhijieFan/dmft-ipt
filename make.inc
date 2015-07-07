@@ -1,33 +1,82 @@
-FC=ifort
-PLAT=intel
-#PRECOMPILATION FLAG (leave blank for serial code)
+##$ COMPILER: suppprted compilers are ifort, gnu >v4.7
+##$ use mpif90 for parallel compiler
+FC=gfortran
+
+##$ PLATFORM: supported platform are intel, gnu
+##$ if using a parallel compiler (mpif90) check
+##$ platform first using the cmd: $mpif90 -show
+PLAT=gnu
+
+##$ PRECOMPILATION FLAGS
+##$ Leave blank for SERIAL CODE
+##$
 FPP=
 
-#set here the absolute bath to the DMFT_TOOLS and SCIFORTRAN libraries:
-LIBROOT=/opt
+##$ LOCATION OF THE scifor and dmft_tools DIRECTORIES
+##$ is placed in different locations edit INCARGS here below
+LIBDIR=/opt
+
+
+##$ CHOOSE THE MODEL BY SELECTING THE PROGRAM DRIVER
+##$ if needed add yours to the list:
+##HUBBARD MODELS 
+#EXE=ipt_hm_matsubara
+#EXE=ipt_hm2d_matsubara
+#EXE=mpt_hm_matsubara
+#EXE=ipt_hm_real
+#EXE=ipt_hm_keldysh
+
+##ATTRACTIVE HUBBARD
+#EXE=ipt_ahm_matsubara
+#EXE=ipt_ahm_real
+#EXE=ipt_ahm_keldysh
+EXE=ipt_ahm_keldysh_bias
+
+
+##$ SET THE LOCATION OF YOU PROGRAM DRIVER (default is ./drivers)
+DIR =drivers
+
+##$ SET THE LOCATION WHERE TO PLACE THE EXECUTABLE (default is $HOME/.bin)
+DIREXE=$(HOME)/.bin
+
 
 .SUFFIXES: .f90
 
 
 ifeq ($(PLAT),intel)
-FFLAG +=-fpp -D_$(FPP_INEQ) -D_$(FPP_ED)
-endif
-ifeq ($(PLAT),gnu)
-INCARGS=-I$(LIBROOT)/scifor/gnu/include -I$(LIBROOT)/dmft_tools/gnu/include
-FFLAG +=-ffree-line-length-none -cpp -D_$(FPP_INEQ) -D_$(FPP_ED) $(INCARGS)
+FFLAG += 
 endif
 
-#CHOOSE LINKING OPTIONS:
-#if you intend to use mkl:
+
+ifeq ($(PLAT),gnu)
+INCARGS=-I$(LIBDIR)/scifor/gnu/include -I$(LIBDIR)/dmft_tools/gnu/include
+FFLAG += -ffree-line-length-none $(INCARGS)
+endif
+
+##$ CHOOSE LINKING OPTIONS:
+##$ 
+##$ If you intend to use mkl:
+##$ 
 #MKLARGS=-lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm
 #ARGS=-ldmftt -lscifor $(MKLARGS) -lminpack
-#ELSE:
+##$ 
+##$ ELSE:
+##$ 
 ARGS=  -ldmftt -lscifor -lfftpack -llapack -lblas -lminpack
 
-#REVISION SOFTWARE GIT:
+
+
+##$ REVISION SOFTWARE VARIABLES
+##$ 
+REV=$(shell git rev-parse HEAD)
 BRANCH=_$(shell git rev-parse --abbrev-ref HEAD)
+REV=$(shell git rev-parse HEAD)
 VER = 'character(len=41),parameter :: revision = "$(REV)"' > revision.inc
 
 ifeq ($(BRANCH),_master)
 BRANCH=
 endif
+
+
+##$ Extends the implicit support of the Makefile to .f90 files
+.SUFFIXES: .f90

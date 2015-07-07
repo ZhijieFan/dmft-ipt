@@ -3,9 +3,9 @@ program ahmk
   USE DMFT_TOOLS
   USE SCIFOR
   implicit none
-  integer                :: i,ik,Lk,iloop,Lm,Lf
+  integer                :: i,ik,Lk,iloop,Lm,L,Lf
   logical                :: converged
-  complex(8)             :: det,zeta1,zeta2,x1,x2
+  complex(8)             :: zdet,zeta1,zeta2,x1,x2
   real(8)                :: delta,n,A,B,nf,dzeta1,dzeta2,D,dt,fmesh
   !
   complex(8),allocatable :: sigma(:,:),fg(:,:),wf0(:,:),calG(:,:),dummy(:,:)
@@ -14,6 +14,7 @@ program ahmk
   real(8),allocatable    :: wr(:),wrx(:)
   !
   call parse_input_variable(Lk,'Lk','inputIPT.in',default=1000)
+  call parse_input_variable(L,"L",'inputIPT.in',default=10000)    
   call parse_input_variable(Lf,'Lf','inputIPT.in',default=5000)
   call parse_input_variable(D,'wband','inputIPT.in',default=1d0)
 
@@ -50,21 +51,21 @@ program ahmk
         fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
         fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
      enddo
-     delta=-uloc*trapz(fmesh,dimag(fg(2,:))*fermi(wr,beta))/pi
+     delta=-uloc(1)*trapz(fmesh,dimag(fg(2,:))*fermi(wr(:),beta))/pi
      n=-trapz(fmesh,dimag(fg(1,:))*fermi(wr,beta))/pi
 
      !GET THE WEISS FIELD \calG0^-1(w)
      ! wf(1)=calG0^-1 = G*(-w)/(G(w)G*(-w) + F(w)F(-w)) + Sigma(w)
      ! wf(2)=calF0^-1 =-F(-w) /(G(w)G*(-w) + F(w)F(-w)) + S(w)
      do i=1,L
-        det     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
-        wf0(1,i)= conjg(fg(1,L+1-i))/det  + sigma(1,i)   +  uloc*(n-0.5d0)
-        wf0(2,i)= conjg(fg(2,L+1-i))/det  + sigma(2,i)   +  delta
+        zdet     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
+        wf0(1,i)= conjg(fg(1,L+1-i))/zdet  + sigma(1,i)   +  uloc(1)*(n-0.5d0)
+        wf0(2,i)= conjg(fg(2,L+1-i))/zdet  + sigma(2,i)   +  delta
      end do
      do i=1,L
-        det      =  wf0(1,i)*conjg(wf0(1,L+1-i)) + conjg(wf0(2,L+1-i))*wf0(2,i)
-        calG(1,i)=  conjg(wf0(1,L+1-i))/det
-        calG(2,i)=  conjg(wf0(2,L+1-i))/det
+        zdet      =  wf0(1,i)*conjg(wf0(1,L+1-i)) + conjg(wf0(2,L+1-i))*wf0(2,i)
+        calG(1,i)=  conjg(wf0(1,L+1-i))/zdet
+        calG(2,i)=  conjg(wf0(2,L+1-i))/zdet
      end do
 
      sigma = ipt_solve_keldysh_sc(calG,delta,wmax)
@@ -74,7 +75,7 @@ program ahmk
      !if(printf)call splot("observables.ipt",delta,xmu,u,n,beta,dble(iloop),append=.true.)
   enddo
 
-  call splot("observables.last",delta,xmu,uloc,n,beta,dble(iloop))
+  call splot("observables.last",delta,xmu,uloc(1),n,beta,dble(iloop))
   call splot("Sigma_realw.restart",wr,sigma(1,:))
   call splot("Self_realw.restart",wr,sigma(2,:))
 

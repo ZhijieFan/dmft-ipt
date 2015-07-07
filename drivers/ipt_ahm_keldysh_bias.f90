@@ -3,10 +3,10 @@ program ahmk
   USE DMFT_TOOLS
   USE SCIFOR
   implicit none
-  integer                :: i,ik,Lk,iloop,Lm,p,q,Lf,Lmts,L
+  integer                :: i,ik,Lk,iloop,p,q,Lf,Lmts,L
   logical                :: converged
-  complex(8)             :: det,zeta1,zeta2,x1,x2
-  real(8)                :: delta,n,A,B,nf,nfL,nfR,ekin,dzeta1,dzeta2,D,dt,fmesh
+  complex(8)             :: zdet,zeta1,zeta2,x1,x2
+  real(8)                :: delta,n,A,B,nf,nfL,nfR,ekin,dzeta1,dzeta2,D,dt,fmesh,tmax
   !
   complex(8),allocatable :: sigma(:,:),fg(:,:),wf0(:,:),calG(:,:),dummy(:,:)
   complex(8),allocatable :: zeta(:),fgm(:,:),sm(:,:),fg0m(:,:),cdet0(:),cdet(:)
@@ -24,174 +24,58 @@ program ahmk
   call parse_input_variable(Lk,'Lk','inputIPT.in',default=1000)
   call parse_input_variable(vbias,'VBIAS','inputIPT.in',default=0d0)
   call parse_input_variable(D,'wband','inputIPT.in',default=1d0)
+  call parse_input_variable(L,"L",'inputIPT.in',default=10000)
+  call parse_input_variable(Lf,"LF",'inputIPT.in',default=4096)
+  call parse_input_variable(Lmts,"Lmts",'inputIPT.in',default=4096)
   call parse_input_variable(poles,"POLES",'inputIPT.in',default=.false.)
   call parse_input_variable(octype,"OCTYPE",'inputIPT.in',default=.false.)
   call parse_input_variable(thermo,"THERMO",'inputIPT.in',default=.false.)
   call parse_input_variable(spole,"SPOLE",'inputIPT.in',default=.false.)
-  call parse_input_variable(L,"L",'inputIPT.in',default=10000)
-  call parse_input_variable(Lf,"LF",'inputIPT.in',default=4096)
-  call parse_input_variable(Lmts,"Lmts",'inputIPT.in',default=4096)
+
 
   call read_input("inputIPT.in")
 
-  ! L=100000
-  ! beta=10000
-  ! wmax=20.d0
-  ! nloop=200
-  ! eps=1.d-3
-  D=1d0
   allocate(fg(2,L))
   allocate(sigma(2,L))
   allocate(wf0(2,L))
   allocate(calG(2,L))
   allocate(zeta(L))
-  Lm=L/2
-  call allocate_gf(fg0k(1),Lm);  call allocate_gf(fg0k(2),Lm)
-  call allocate_gf(sk(1),Lm)  ;  call allocate_gf(sk(2),Lm)
-  call allocate_gf(calG11,Lm)
-  call allocate_gf(calG22,Lm)
-  call allocate_gf(calF12,Lm)
-  call allocate_gf(calF21,Lm)
 
-  allocate(wr(L),t(-L/2:L/2))
+  call allocate_gf(fg0k(1),L);  call allocate_gf(fg0k(2),L)
+  call allocate_gf(sk(1),L)  ;  call allocate_gf(sk(2),L)
+  call allocate_gf(calG11,L)
+  call allocate_gf(calG22,L)
+  call allocate_gf(calF12,L)
+  call allocate_gf(calF21,L)
+
+  dt  = pi/wmax;print*,dt
+  tmax= dt*L/2
+  allocate(wr(L),t(L))
   wr =  linspace(-wmax,wmax,L,mesh=fmesh)
-  dt  = pi/wmax
-  t   = linspace(-dt*Lm,dt*Lm,L+1,mesh=dt)
-
+  t   = linspace(-tmax+dt,tmax,L,mesh=dt)
   print*,"MESH="//txtfy(fmesh)
 
   call get_initial_sigma
 
-  iloop=0    ; converged=.false.
-
-
   if(thermo)then
-     !GET Matsubara functions (not working well: aka only at large enough temperature, 
-     !because of the finite broadening you can not resolve infinitely small energies/temp)
-     converged=.true.
-     beta=1000.d0
-     fg=zero
-     zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
-     do i=1,L
-        zeta1 = zeta(i)
-        zeta2 = conjg(zeta(L+1-i))
-        x1 = 0.5d0*((zeta1+zeta2) + sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
-        x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
-        fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
-        fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
-     enddo
-     delta=-uloc(1)*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
-     n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
-     allocate(wrx(Lmts),fgm(2,Lmts),fg0m(2,Lmts),sm(2,Lmts))
-     wrx = pi/beta*real(2*arange(1,Lmts)-1,8)
-     allocate(wt(Lk),epsik(Lk),nk(Lk))
-     call bethe_lattice(wt,epsik,Lk,1d0)
-     write(*,*)"Get Matsubara GF:",Lmts
-     print*,'G(iw)'
-     call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
-     print*,'F(iw)'
-     call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
-     print*,'Sigma(iw)'
-     call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
-     print*,'S(iw)'
-     call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
-     fgm(2,:)=dreal(fgm(2,:))
-     sm(2,:)=dreal(sm(2,:))-delta
-     call splot("G_iw.last",wrx,fgm(1,:))
-     call splot("F_iw.last",wrx,fgm(2,:))
-     call splot("G0_iw.last",wrx,fg0m(1,:))
-     call splot("F0_iw.last",wrx,fg0m(2,:))
-     call splot("Sigma_iw.last",wrx,sm(1,:))
-     call splot("Self_iw.last",wrx,sm(2,:))
-     call get_sc_internal_energy(Lmts,wrx,fgm,sm,L,wr,fg)
+     call get_thermo()
      stop
   endif
-
-
   if(poles)then
-     converged=.true.
-     allocate(wt(Lk),epsik(Lk),nk(Lk),ddet(L),ipoles(Lk))
-     call bethe_lattice(wt,epsik,Lk,D)
-     zeta(:) = wr(:) + xmu - sigma(1,:)
-     do ik=1,Lk
-        do i=1,L
-           dzeta1 = dreal(zeta(i))
-           dzeta2 = dreal(zeta(L+1-i))
-           ddet(i) = (dzeta1-epsik(ik))*(dzeta2-epsik(ik))+dreal(sigma(2,L+1-i))*dreal(Sigma(2,i))
-        enddo
-        call init_finter(det_finter,wr,ddet,5)
-        ipoles(ik) = fzero_brentq(det_poles,0.d0,wr(L))
-     enddo
-     call splot("poles.last",epsik,ipoles)
+     call get_poles()
      stop
   endif
-
-
   if(spole)then
-     !EVALUATE THE SPECTRAL FUNCTION
-     fg=zero
-     allocate(dos(L))
-     allocate(dSigma(L))
-     zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
-     do i=1,L
-        zeta1 = zeta(i)
-        zeta2 = conjg(zeta(L+1-i))
-        x1 = 0.5d0*((zeta1+zeta2) + sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
-        x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
-        fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
-        fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
-     enddo
-     dos = -dimag(fg(1,:))/pi
-     dos_max=maxval(dos)
-     dos_maxloc=int(maxloc(dos,dim=1))
-     open(100,file="qpDOSinfo.ipt")
-     write(100,*)wr(dos_maxloc),-dimag(fg(1,dos_maxloc))/pi,dreal(fg(1,dos_maxloc))
-     close(100)
-     open(100,file="qpFinfo.ipt")
-     write(100,*)wr(dos_maxloc),dimag(fg(2,dos_maxloc)),dreal(fg(2,dos_maxloc))
-     close(100)
-     open(100,file="qpzSigma.ipt")
-     write(100,*)wr(dos_maxloc),dimag(sigma(1,dos_maxloc)),dreal(sigma(1,dos_maxloc))
-     close(100)
-     open(100,file="qpzSelf.ipt")
-     write(100,*)wr(dos_maxloc),dimag(sigma(2,dos_maxloc)),dreal(sigma(2,dos_maxloc))
-     close(100)
-     open(100,file="Sigma_zero.ipt")
-     write(100,*)0.5d0*(dimag(sigma(1,L/2))+dimag(sigma(1,L/2+1))),0.5d0*(dreal(sigma(1,L/2))+dreal(sigma(1,L/2+1)))
-     close(100)
-     dSigma = deriv(dreal(Sigma(1,:)),fmesh)
-     open(100,file="ZdReSigma_realw.ipt")
-     write(100,*)1.d0/(1.d0-dSigma(dos_maxloc)),dSigma(dos_maxloc)
-     close(100)
-     print*,dos_max,dos_maxloc,dimag(sigma(1,dos_maxloc))
-     print*,1/(1-dSigma(dos_maxloc)),dSigma(dos_maxloc)
+     call get_spole()
      stop
   endif
-
-
-
-
-
-
   if(octype)then
-     converged=.true.
-     if(mod(Lf,2)/=0)Lf=Lf+1
-     allocate(wrx(Lf),dummy(2,Lf))
-     wrx = linspace(-wxmax,wxmax,Lf)
-     call cubic_spline(wr,sigma(1,:),wrx,dummy(1,:))
-     call cubic_spline(wr,sigma(2,:),wrx,dummy(2,:))
-     call splot("Sigma_realw_oc.last",wrx,dummy(1,:))
-     call splot("Self_realw_oc.last",wrx,dummy(2,:))
-     allocate(wt(Lk),epsik(Lk))
-     call bethe_lattice(wt,epsik,Lk,D)
-     call get_sc_optical_conductivity(Lf,wrx,dummy)  
-     deallocate(wt,epsik,wrx,dummy)
+     call get_octype()
      stop
   endif
 
 
-
-
+  iloop=0    ; converged=.false.
   do while (.not.converged)
      iloop=iloop+1
      write(*,"(A,i5)",advance="no")"DMFT-loop",iloop
@@ -214,14 +98,14 @@ program ahmk
      ! wf(1)=calG0^-1 = G*(-w)/(G(w)G*(-w) + F(w)F(-w)) + Sigma(w)
      ! wf(2)=calF0^-1 =-F(-w) /(G(w)G*(-w) + F(w)F(-w)) + S(w)
      do i=1,L
-        det     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
-        wf0(1,i)= conjg(fg(1,L+1-i))/det  + sigma(1,i)   +  uloc(1)*(n-0.5d0)
-        wf0(2,i)= fg(2,i)/det       + conjg(sigma(2,L+1-i))   + delta
+        zdet     = fg(1,i)*conjg(fg(1,L+1-i)) + conjg(fg(2,L+1-i))*fg(2,i)
+        wf0(1,i)= conjg(fg(1,L+1-i))/zdet  + sigma(1,i)        !+  uloc(1)*(n-0.5d0)
+        wf0(2,i)= fg(2,i)/zdet       + conjg(sigma(2,L+1-i))   + delta
      end do
      do i=1,L
-        det      =  wf0(1,i)*conjg(wf0(1,L+1-i)) + conjg(wf0(2,L+1-i))*wf0(2,i)
-        calG(1,i)=  conjg(wf0(1,L+1-i))/det
-        calG(2,i)=  conjg(wf0(2,L+1-i))/det
+        zdet      =  wf0(1,i)*conjg(wf0(1,L+1-i)) + conjg(wf0(2,L+1-i))*wf0(2,i)
+        calG(1,i)=  conjg(wf0(1,L+1-i))/zdet
+        calG(2,i)=  conjg(wf0(2,L+1-i))/zdet
      end do
 
 
@@ -238,40 +122,76 @@ program ahmk
         fg0k(2)%gtr%w(i)  = pi2*xi*(nf-1.d0)*B
      enddo
 
+     ! calG11%less%w = fg0k(1)%less%w    
+     ! calG11%gtr%w = fg0k(1)%gtr%w    
+     ! forall(i=1:L)calG22%less%w(i) = -(fg0k(1)%gtr%w(L+1-i))
+     ! forall(i=1:L)calG22%gtr%w(i) = -(fg0k(1)%less%w(L+1-i))
+     ! calF12%less%w   = -conjg(fg0k(2)%less%w)
+     ! calF12%gtr%w   =  fg0k(2)%gtr%w
+     ! calF21%less%w   = fg0k(2)%less%w
+     ! calF21%gtr%w   = -conjg(fg0k(2)%gtr%w)
+     ! call fft_gf_rw2rt(calG11%less%w,calG11%less%t) ; calG11%less%t=fmesh/pi2*calG11%less%t
+     ! call fft_gf_rw2rt(calG11%gtr%w,calG11%gtr%t)   ; calG11%gtr%t =fmesh/pi2*calG11%gtr%t
+     ! call fft_gf_rw2rt(calG22%less%w,calG22%less%t) ; calG22%less%t=fmesh/pi2*calG22%less%t
+     ! call fft_gf_rw2rt(calG22%gtr%w,calG22%gtr%t)   ; calG22%gtr%t =fmesh/pi2*calG22%gtr%t
+     ! call fft_gf_rw2rt(calF12%less%w,calF12%less%t) ; calF12%less%t=fmesh/pi2*calF12%less%t
+     ! call fft_gf_rw2rt(calF12%gtr%w,calF12%gtr%t)   ; calF12%gtr%t =fmesh/pi2*calF12%gtr%t
+     ! call fft_gf_rw2rt(calF21%less%w,calF21%less%t) ; calF21%less%t=fmesh/pi2*calF21%less%t
+     ! call fft_gf_rw2rt(calF21%gtr%w,calF21%gtr%t)   ; calF21%gtr%t =fmesh/pi2*calF21%gtr%t
+     !
+     ! do i=1,L
+     !    sk(1)%less%t(i) = Uloc(1)**2*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(L+1-i)
+     !    sk(1)%gtr%t(i) =  Uloc(1)**2*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(L+1-i)
+     !    !
+     !    sk(2)%less%t(i) = Uloc(1)**2*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(L+1-i)
+     !    sk(2)%gtr%t(i) =  Uloc(1)**2*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(L+1-i)
+     !    !
+     !    sk(1)%ret%t(i) =heaviside(t(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
+     !    sk(2)%ret%t(i) =heaviside(t(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
+     ! enddo
+     ! if(heaviside(0.d0)==1.d0)sk(1)%ret%t(0)=sk(1)%ret%t(0)/2.d0 
+     ! if(heaviside(0.d0)==1.d0)sk(2)%ret%t(0)=sk(2)%ret%t(0)/2.d0
+     ! call fft_sigma_rt2rw(sk(1)%ret%t,sk(1)%ret%w) ;      sk(1)%ret%w=dt*sk(1)%ret%w
+     ! call fft_sigma_rt2rw(sk(2)%ret%t,sk(2)%ret%w) ;      sk(2)%ret%w=dt*sk(2)%ret%w
+     ! call splot("Sigma_t.dat",t,sk(1)%ret%t)
+     ! sigma(1,:) = sk(1)%ret%w
+     ! sigma(2,:) = -delta + sk(2)%ret%w
+
      calG11%less%w = fg0k(1)%less%w    
      calG11%gtr%w = fg0k(1)%gtr%w    
-     forall(i=1:L)calG22%less%w(i) = -(fg0k(1)%gtr%w(L+1-i))
-     forall(i=1:L)calG22%gtr%w(i) = -(fg0k(1)%less%w(L+1-i))
-
+     calG22%less%w = -(fg0k(1)%gtr%w(L:1:-1))
+     calG22%gtr%w = -(fg0k(1)%less%w(L:1:-1))
+     !
      calF12%less%w   = -conjg(fg0k(2)%less%w)
      calF12%gtr%w   =  fg0k(2)%gtr%w
-
      calF21%less%w   = fg0k(2)%less%w
      calF21%gtr%w   = -conjg(fg0k(2)%gtr%w)
+     !
+     calG11%less%t = f_fft_gf_rw2rt(calG11%less%w)*fmesh/pi2
+     calG11%gtr%t  = f_fft_gf_rw2rt(calG11%gtr%w)*fmesh/pi2
+     calG22%less%t = f_fft_gf_rw2rt(calG22%less%w)*fmesh/pi2
+     calG22%gtr%t  = f_fft_gf_rw2rt(calG22%gtr%w)*fmesh/pi2
+     !
+     calF12%less%t = f_fft_gf_rw2rt(calF12%less%w)*fmesh/pi2
+     calF12%gtr%t  = f_fft_gf_rw2rt(calF12%gtr%w)*fmesh/pi2
+     calF21%less%t = f_fft_gf_rw2rt(calF21%less%w)*fmesh/pi2
+     calF21%gtr%t  = f_fft_gf_rw2rt(calF21%gtr%w)*fmesh/pi2
 
-     call fft_gf_rw2rt(calG11%less%w,calG11%less%t) ; calG11%less%t=fmesh/pi2*calG11%less%t
-     call fft_gf_rw2rt(calG11%gtr%w,calG11%gtr%t)   ; calG11%gtr%t =fmesh/pi2*calG11%gtr%t
-     call fft_gf_rw2rt(calG22%less%w,calG22%less%t) ; calG22%less%t=fmesh/pi2*calG22%less%t
-     call fft_gf_rw2rt(calG22%gtr%w,calG22%gtr%t)   ; calG22%gtr%t =fmesh/pi2*calG22%gtr%t
-     call fft_gf_rw2rt(calF12%less%w,calF12%less%t) ; calF12%less%t=fmesh/pi2*calF12%less%t
-     call fft_gf_rw2rt(calF12%gtr%w,calF12%gtr%t)   ; calF12%gtr%t =fmesh/pi2*calF12%gtr%t
-     call fft_gf_rw2rt(calF21%less%w,calF21%less%t) ; calF21%less%t=fmesh/pi2*calF21%less%t
-     call fft_gf_rw2rt(calF21%gtr%w,calF21%gtr%t)   ; calF21%gtr%t =fmesh/pi2*calF21%gtr%t
-
-     do i=-Lm,Lm 
-        sk(1)%less%t(i) = Uloc(1)**2*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(-i)
-        sk(1)%gtr%t(i) =  Uloc(1)**2*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(-i)
-        !
-        sk(2)%less%t(i) = Uloc(1)**2*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(-i)
-        sk(2)%gtr%t(i) =  Uloc(1)**2*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(-i)
-        !
-        sk(1)%ret%t(i) =heaviside(t(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
-        sk(2)%ret%t(i) =heaviside(t(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
+     do i=1,L
+        sk(1)%less%t(i) = Uloc(1)*Uloc(1)*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(L-i+1)
+        sk(1)%gtr%t(i)  = Uloc(1)*Uloc(1)*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(L-i+1)
+        sk(2)%less%t(i) = Uloc(1)*Uloc(1)*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(L-i+1)
+        sk(2)%gtr%t(i)  = Uloc(1)*Uloc(1)*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(L-i+1)
+        sk(1)%ret%t(i)  = heaviside(t(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
+        sk(2)%ret%t(i)  = heaviside(t(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
      enddo
-     if(heaviside(0.d0)==1.d0)sk(1)%ret%t(0)=sk(1)%ret%t(0)/2.d0 
-     if(heaviside(0.d0)==1.d0)sk(2)%ret%t(0)=sk(2)%ret%t(0)/2.d0
-     call fft_gf_rt2rw(sk(1)%ret%t,sk(1)%ret%w) ;      sk(1)%ret%w=dt*sk(1)%ret%w
-     call fft_gf_rt2rw(sk(2)%ret%t,sk(2)%ret%w) ;      sk(2)%ret%w=dt*sk(2)%ret%w
+     ! if(heaviside(0.d0)==1.d0)sk(1)%ret%t(L/2)=sk(1)%ret%t(L/2)/2.d0 
+     ! if(heaviside(0.d0)==1.d0)sk(2)%ret%t(L/2)=sk(2)%ret%t(L/2)/2.d0
+     !
+     call splot("Sigma_t.dat",t,sk(1)%ret%t)
+     
+     sk(1)%ret%w = f_fft_sigma_rt2rw(sk(1)%ret%t)*dt
+     sk(2)%ret%w = f_fft_sigma_rt2rw(sk(2)%ret%t)*dt
 
      sigma(1,:) = sk(1)%ret%w
      sigma(2,:) = -delta + sk(2)%ret%w
@@ -369,7 +289,7 @@ contains
     complex(8)             :: sigma(2,L)
     integer                :: i,ik,iv,iw,Nw
     real(8)                :: vel2,dos,Dfermi,A2,B2,ock
-    complex(8)             :: det,zeta1,zeta2,fg(2)
+    complex(8)             :: zdet,zeta1,zeta2,fg(2)
     real(8),allocatable    :: oc(:), Ak(:,:,:),cDOS(:,:),ocw(:)
     complex(8),allocatable :: zeta(:)
 
@@ -385,9 +305,9 @@ contains
        zeta1 = zeta(i)
        zeta2 = conjg(zeta(L+1-i))
        do ik=1,Lk
-          det = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
-          fg(1)=(zeta2-epsik(ik))/det
-          fg(2)=conjg(sigma(2,L+1-i))/det
+          zdet = (zeta1-epsik(ik))*(zeta2-epsik(ik)) + conjg(sigma(2,L+1-i))*sigma(2,i)
+          fg(1)=(zeta2-epsik(ik))/zdet
+          fg(2)=conjg(sigma(2,L+1-i))/zdet
           Ak(1,ik,i)=-dimag(fg(1))/pi
           Ak(2,ik,i)=-dimag(fg(2))/pi
           cDOS(1,i)=cDOS(1,i)+Ak(1,ik,i)*wt(ik)
@@ -432,6 +352,128 @@ contains
 
 
 
+  subroutine get_thermo()
+    !GET Matsubara functions (not working well: aka only at large enough temperature, 
+    !because of the finite broadening you can not resolve infinitely small energies/temp)
+    converged=.true.
+    beta=1000.d0
+    fg=zero
+    zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
+    do i=1,L
+       zeta1 = zeta(i)
+       zeta2 = conjg(zeta(L+1-i))
+       x1 = 0.5d0*((zeta1+zeta2) + sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+       x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+       fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+       fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+    enddo
+    delta=-uloc(1)*sum(dimag(fg(2,:))*fermi(wr,beta))*fmesh/pi
+    n    =-sum(dimag(fg(1,:))*fermi(wr,beta))*fmesh/pi
+    allocate(wrx(Lmts),fgm(2,Lmts),fg0m(2,Lmts),sm(2,Lmts))
+    wrx = pi/beta*real(2*arange(1,Lmts)-1,8)
+    allocate(wt(Lk),epsik(Lk),nk(Lk))
+    call bethe_lattice(wt,epsik,Lk,1d0)
+    write(*,*)"Get Matsubara GF:",Lmts
+    print*,'G(iw)'
+    call get_matsubara_gf_from_dos(wr,fg(1,:),fgm(1,:),beta)
+    print*,'F(iw)'
+    call get_matsubara_gf_from_dos(wr,fg(2,:),fgm(2,:),beta)
+    print*,'Sigma(iw)'
+    call get_matsubara_gf_from_dos(wr,sigma(1,:),sm(1,:),beta)
+    print*,'S(iw)'
+    call get_matsubara_gf_from_dos(wr,sigma(2,:),sm(2,:),beta)
+    fgm(2,:)=dreal(fgm(2,:))
+    sm(2,:)=dreal(sm(2,:))-delta
+    call splot("G_iw.last",wrx,fgm(1,:))
+    call splot("F_iw.last",wrx,fgm(2,:))
+    call splot("G0_iw.last",wrx,fg0m(1,:))
+    call splot("F0_iw.last",wrx,fg0m(2,:))
+    call splot("Sigma_iw.last",wrx,sm(1,:))
+    call splot("Self_iw.last",wrx,sm(2,:))
+    call get_sc_internal_energy(Lmts,wrx,fgm,sm,L,wr,fg)
+  end subroutine get_thermo
+
+  subroutine get_poles()
+    converged=.true.
+    allocate(wt(Lk),epsik(Lk),nk(Lk),ddet(L),ipoles(Lk))
+    call bethe_lattice(wt,epsik,Lk,D)
+    zeta(:) = wr(:) + xmu - sigma(1,:)
+    do ik=1,Lk
+       do i=1,L
+          dzeta1 = dreal(zeta(i))
+          dzeta2 = dreal(zeta(L+1-i))
+          ddet(i) = (dzeta1-epsik(ik))*(dzeta2-epsik(ik))+dreal(sigma(2,L+1-i))*dreal(Sigma(2,i))
+       enddo
+       call init_finter(det_finter,wr,ddet,5)
+       ipoles(ik) = fzero_brentq(det_poles,0.d0,wr(L))
+    enddo
+    call splot("poles.last",epsik,ipoles)
+  end subroutine get_poles
+
+
+
+  subroutine get_spole()
+    !EVALUATE THE SPECTRAL FUNCTION
+    fg=zero
+    allocate(dos(L))
+    allocate(dSigma(L))
+    zeta(:) = cmplx(wr(:),eps,8) + xmu - sigma(1,:)
+    do i=1,L
+       zeta1 = zeta(i)
+       zeta2 = conjg(zeta(L+1-i))
+       x1 = 0.5d0*((zeta1+zeta2) + sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+       x2 = 0.5d0*((zeta1+zeta2) - sqrt((zeta1-zeta2)**2 - 4.d0*conjg(sigma(2,L+1-i))*sigma(2,i) ))
+       fg(1,i) = zeta2/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+       fg(2,i) =-conjg(sigma(2,L+1-i))/(x2-x1)*(gfbether(wr(i),x1,D)-gfbether(wr(i),x2,D))
+    enddo
+    dos = -dimag(fg(1,:))/pi
+    dos_max=maxval(dos)
+    dos_maxloc=int(maxloc(dos,dim=1))
+    open(100,file="qpDOSinfo.ipt")
+    write(100,*)wr(dos_maxloc),-dimag(fg(1,dos_maxloc))/pi,dreal(fg(1,dos_maxloc))
+    close(100)
+    open(100,file="qpFinfo.ipt")
+    write(100,*)wr(dos_maxloc),dimag(fg(2,dos_maxloc)),dreal(fg(2,dos_maxloc))
+    close(100)
+    open(100,file="qpzSigma.ipt")
+    write(100,*)wr(dos_maxloc),dimag(sigma(1,dos_maxloc)),dreal(sigma(1,dos_maxloc))
+    close(100)
+    open(100,file="qpzSelf.ipt")
+    write(100,*)wr(dos_maxloc),dimag(sigma(2,dos_maxloc)),dreal(sigma(2,dos_maxloc))
+    close(100)
+    open(100,file="Sigma_zero.ipt")
+    write(100,*)0.5d0*(dimag(sigma(1,L/2))+dimag(sigma(1,L/2+1))),0.5d0*(dreal(sigma(1,L/2))+dreal(sigma(1,L/2+1)))
+    close(100)
+    dSigma = deriv(dreal(Sigma(1,:)),fmesh)
+    open(100,file="ZdReSigma_realw.ipt")
+    write(100,*)1.d0/(1.d0-dSigma(dos_maxloc)),dSigma(dos_maxloc)
+    close(100)
+    print*,dos_max,dos_maxloc,dimag(sigma(1,dos_maxloc))
+    print*,1/(1-dSigma(dos_maxloc)),dSigma(dos_maxloc)
+  end subroutine get_spole
+
+
+
+  subroutine get_octype()
+    converged=.true.
+    if(mod(Lf,2)/=0)Lf=Lf+1
+    allocate(wrx(Lf),dummy(2,Lf))
+    wrx = linspace(-wxmax,wxmax,Lf)
+    call cubic_spline(wr,sigma(1,:),wrx,dummy(1,:))
+    call cubic_spline(wr,sigma(2,:),wrx,dummy(2,:))
+    call splot("Sigma_realw_oc.last",wrx,dummy(1,:))
+    call splot("Self_realw_oc.last",wrx,dummy(2,:))
+    allocate(wt(Lk),epsik(Lk))
+    call bethe_lattice(wt,epsik,Lk,D)
+    call get_sc_optical_conductivity(Lf,wrx,dummy)  
+    deallocate(wt,epsik,wrx,dummy)
+  end subroutine get_octype
+
+
+
+
+
+
 
 
   subroutine get_sc_internal_energy(L,wm,fg,sigma,Lr,wr,fgr)
@@ -442,7 +484,7 @@ contains
     real(8)    :: matssum,fmatssum,checkP,checkdens,vertex,Dssum
     complex(8) :: iw,gkw,fkw,g0kw,f0kw
     real(8)    :: Epot,Etot,Eint,kin,kinsim,Ds,docc
-    real(8)    :: Sigma_infty,S_infty,det,det_infty,csi,Ei,thermal_factor
+    real(8)    :: Sigma_infty,S_infty,zdet,det_infty,csi,Ei,thermal_factor
     real(8)    :: free(Lk),Ffree(Lk),n_k(Lk)
 
     !Get asymptotic self-energies
@@ -469,11 +511,11 @@ contains
 
        do i=1,L
           iw       = xi*wm(i)
-          det      = abs(iw+xmu-epsik(ik)-sigma(1,i))**2 + real(sigma(2,i),8)**2
+          zdet      = abs(iw+xmu-epsik(ik)-sigma(1,i))**2 + real(sigma(2,i),8)**2
           det_infty= wm(i)**2 + (epsik(ik)-(xmu-Sigma_infty))**2 + S_infty**2
 
-          gkw = (-iw+xmu - epsik(ik) - conjg(sigma(1,i)) )/det
-          fkw = -sigma(2,i)/det
+          gkw = (-iw+xmu - epsik(ik) - conjg(sigma(1,i)) )/zdet
+          fkw = -sigma(2,i)/zdet
 
           g0kw= (-iw - (epsik(ik)-(xmu-Sigma_infty)))/det_infty
           f0kw=-S_infty/det_infty
@@ -542,6 +584,7 @@ contains
     close(200)
     return 
   end subroutine get_sc_internal_energy
+
 
 
 

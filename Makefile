@@ -1,21 +1,5 @@
 include make.inc
 
-##HUBBARD MODELS 
-#EXE=ipt_hm_matsubara
-EXE=ipt_hm2d_matsubara
-#EXE=mpt_hm_matsubara
-#EXE=ipt_hm_real
-#EXE=ipt_hm_keldysh
-
-##ATTRACTIVE HUBBARD
-#EXE=ipt_ahm_matsubara
-#EXE=ipt_ahm_real
-#EXE=ipt_ahm_keldysh
-#EXE=ipt_ahm_keldysh_bias
-
-DIR=./drivers
-DIREXE= $(HOME)/.bin
-
 OBJS=IPT_GF.o IPT_VARS_GLOBAL.o IPT_MATSUBARA.o IPT_REAL.o IPT_KELDYSH.o DMFT_IPT.o
 
 all:compile
