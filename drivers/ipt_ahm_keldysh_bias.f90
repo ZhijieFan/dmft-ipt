@@ -50,9 +50,9 @@ program ahmk
 
   dt  = pi/wmax;print*,dt
   tmax= dt*L/2
-  allocate(wr(L),t(L))
+  allocate(wr(L),t(0:L))
   wr =  linspace(-wmax,wmax,L,mesh=fmesh)
-  t   = linspace(-tmax+dt,tmax,L,mesh=dt)
+  t   = linspace(-tmax,tmax,L+1,mesh=dt)
   print*,"MESH="//txtfy(fmesh)
 
   call get_initial_sigma
@@ -107,8 +107,7 @@ program ahmk
         calG(1,i)=  conjg(wf0(1,L+1-i))/zdet
         calG(2,i)=  conjg(wf0(2,L+1-i))/zdet
      end do
-
-
+     !
      fg0k(1)=zero ; fg0k(2)=zero
      do i=1,L
         A = -dimag(calG(1,i))/pi
@@ -121,81 +120,42 @@ program ahmk
         fg0k(2)%less%w(i) = pi2*xi*nf*B       
         fg0k(2)%gtr%w(i)  = pi2*xi*(nf-1.d0)*B
      enddo
-
-     ! calG11%less%w = fg0k(1)%less%w    
-     ! calG11%gtr%w = fg0k(1)%gtr%w    
-     ! forall(i=1:L)calG22%less%w(i) = -(fg0k(1)%gtr%w(L+1-i))
-     ! forall(i=1:L)calG22%gtr%w(i) = -(fg0k(1)%less%w(L+1-i))
-     ! calF12%less%w   = -conjg(fg0k(2)%less%w)
-     ! calF12%gtr%w   =  fg0k(2)%gtr%w
-     ! calF21%less%w   = fg0k(2)%less%w
-     ! calF21%gtr%w   = -conjg(fg0k(2)%gtr%w)
-     ! call fft_gf_rw2rt(calG11%less%w,calG11%less%t) ; calG11%less%t=fmesh/pi2*calG11%less%t
-     ! call fft_gf_rw2rt(calG11%gtr%w,calG11%gtr%t)   ; calG11%gtr%t =fmesh/pi2*calG11%gtr%t
-     ! call fft_gf_rw2rt(calG22%less%w,calG22%less%t) ; calG22%less%t=fmesh/pi2*calG22%less%t
-     ! call fft_gf_rw2rt(calG22%gtr%w,calG22%gtr%t)   ; calG22%gtr%t =fmesh/pi2*calG22%gtr%t
-     ! call fft_gf_rw2rt(calF12%less%w,calF12%less%t) ; calF12%less%t=fmesh/pi2*calF12%less%t
-     ! call fft_gf_rw2rt(calF12%gtr%w,calF12%gtr%t)   ; calF12%gtr%t =fmesh/pi2*calF12%gtr%t
-     ! call fft_gf_rw2rt(calF21%less%w,calF21%less%t) ; calF21%less%t=fmesh/pi2*calF21%less%t
-     ! call fft_gf_rw2rt(calF21%gtr%w,calF21%gtr%t)   ; calF21%gtr%t =fmesh/pi2*calF21%gtr%t
      !
-     ! do i=1,L
-     !    sk(1)%less%t(i) = Uloc(1)**2*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(L+1-i)
-     !    sk(1)%gtr%t(i) =  Uloc(1)**2*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(L+1-i)
-     !    !
-     !    sk(2)%less%t(i) = Uloc(1)**2*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(L+1-i)
-     !    sk(2)%gtr%t(i) =  Uloc(1)**2*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(L+1-i)
-     !    !
-     !    sk(1)%ret%t(i) =heaviside(t(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
-     !    sk(2)%ret%t(i) =heaviside(t(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
-     ! enddo
-     ! if(heaviside(0.d0)==1.d0)sk(1)%ret%t(0)=sk(1)%ret%t(0)/2.d0 
-     ! if(heaviside(0.d0)==1.d0)sk(2)%ret%t(0)=sk(2)%ret%t(0)/2.d0
-     ! call fft_sigma_rt2rw(sk(1)%ret%t,sk(1)%ret%w) ;      sk(1)%ret%w=dt*sk(1)%ret%w
-     ! call fft_sigma_rt2rw(sk(2)%ret%t,sk(2)%ret%w) ;      sk(2)%ret%w=dt*sk(2)%ret%w
-     ! call splot("Sigma_t.dat",t,sk(1)%ret%t)
-     ! sigma(1,:) = sk(1)%ret%w
-     ! sigma(2,:) = -delta + sk(2)%ret%w
-
      calG11%less%w = fg0k(1)%less%w    
      calG11%gtr%w = fg0k(1)%gtr%w    
-     calG22%less%w = -(fg0k(1)%gtr%w(L:1:-1))
-     calG22%gtr%w = -(fg0k(1)%less%w(L:1:-1))
-     !
+     forall(i=1:L)calG22%less%w(i) = -(fg0k(1)%gtr%w(L+1-i))
+     forall(i=1:L)calG22%gtr%w(i) = -(fg0k(1)%less%w(L+1-i))
      calF12%less%w   = -conjg(fg0k(2)%less%w)
      calF12%gtr%w   =  fg0k(2)%gtr%w
      calF21%less%w   = fg0k(2)%less%w
      calF21%gtr%w   = -conjg(fg0k(2)%gtr%w)
      !
-     calG11%less%t = f_fft_gf_rw2rt(calG11%less%w)*fmesh/pi2
-     calG11%gtr%t  = f_fft_gf_rw2rt(calG11%gtr%w)*fmesh/pi2
-     calG22%less%t = f_fft_gf_rw2rt(calG22%less%w)*fmesh/pi2
-     calG22%gtr%t  = f_fft_gf_rw2rt(calG22%gtr%w)*fmesh/pi2
-     !
-     calF12%less%t = f_fft_gf_rw2rt(calF12%less%w)*fmesh/pi2
-     calF12%gtr%t  = f_fft_gf_rw2rt(calF12%gtr%w)*fmesh/pi2
-     calF21%less%t = f_fft_gf_rw2rt(calF21%less%w)*fmesh/pi2
-     calF21%gtr%t  = f_fft_gf_rw2rt(calF21%gtr%w)*fmesh/pi2
-
-     do i=1,L
-        sk(1)%less%t(i) = Uloc(1)*Uloc(1)*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(L-i+1)
-        sk(1)%gtr%t(i)  = Uloc(1)*Uloc(1)*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(L-i+1)
-        sk(2)%less%t(i) = Uloc(1)*Uloc(1)*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(L-i+1)
-        sk(2)%gtr%t(i)  = Uloc(1)*Uloc(1)*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(L-i+1)
-        sk(1)%ret%t(i)  = heaviside(t(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
-        sk(2)%ret%t(i)  = heaviside(t(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
+     calG11%less%t = f_fft_rw2rt(calG11%less%w)*fmesh/pi2
+     calG11%gtr%t  = f_fft_rw2rt(calG11%gtr%w)*fmesh/pi2
+     calG22%less%t = f_fft_rw2rt(calG22%less%w)*fmesh/pi2
+     calG22%gtr%t  = f_fft_rw2rt(calG22%gtr%w)*fmesh/pi2
+     calF12%less%t = f_fft_rw2rt(calF12%less%w)*fmesh/pi2
+     calF12%gtr%t  = f_fft_rw2rt(calF12%gtr%w)*fmesh/pi2
+     calF21%less%t = f_fft_rw2rt(calF21%less%w)*fmesh/pi2
+     calF21%gtr%t  = f_fft_rw2rt(calF21%gtr%w)*fmesh/pi2
+     do i=0,L
+        sk(1)%less%t(i) = Uloc(1)**2*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(L-i)
+        sk(1)%gtr%t(i) =  Uloc(1)**2*(calG11%gtr%t(i)*calG22%gtr%t(i) - calF12%gtr%t(i)*calF21%gtr%t(i))*calG22%less%t(L-i)
+        sk(2)%less%t(i) = Uloc(1)**2*(calF12%less%t(i)*calF21%less%t(i) - calG11%less%t(i)*calG22%less%t(i))*calF12%gtr%t(L-i)
+        sk(2)%gtr%t(i) =  Uloc(1)**2*(calF12%gtr%t(i)*calF21%gtr%t(i)  - calG11%gtr%t(i)*calG22%gtr%t(i))*calF12%less%t(L-i)
+        sk(1)%ret%t(i) =heaviside(t(i))*(sk(1)%gtr%t(i)-sk(1)%less%t(i))
+        sk(2)%ret%t(i) =heaviside(t(i))*(sk(2)%gtr%t(i)-sk(2)%less%t(i))
      enddo
-     ! if(heaviside(0.d0)==1.d0)sk(1)%ret%t(L/2)=sk(1)%ret%t(L/2)/2.d0 
-     ! if(heaviside(0.d0)==1.d0)sk(2)%ret%t(L/2)=sk(2)%ret%t(L/2)/2.d0
      !
-     call splot("Sigma_t.dat",t,sk(1)%ret%t)
-     
-     sk(1)%ret%w = f_fft_sigma_rt2rw(sk(1)%ret%t)*dt
-     sk(2)%ret%w = f_fft_sigma_rt2rw(sk(2)%ret%t)*dt
-
+     if(heaviside(0.d0)==1.d0)sk(1)%ret%t(0)=sk(1)%ret%t(0)/2.d0 
+     if(heaviside(0.d0)==1.d0)sk(2)%ret%t(0)=sk(2)%ret%t(0)/2.d0
+     !
+     sk(1)%ret%w = f_fft_rt2rw(sk(1)%ret%t)*dt
+     sk(2)%ret%w = f_fft_rt2rw(sk(2)%ret%t)*dt
+     !
      sigma(1,:) = sk(1)%ret%w
      sigma(2,:) = -delta + sk(2)%ret%w
-
+     ! sigma = ipt_solve_keldysh_sc(calG,delta,vbias)
      write(*,"(2f14.9)",advance="no")2.d0*n,delta
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=dmft_error,N1=Nsuccess,N2=Nloop)
      !if(printf)call splot("observables.ipt",vbias,delta,xmu,u,n,beta,dble(iloop),append=.true.)

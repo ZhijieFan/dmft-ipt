@@ -8,6 +8,7 @@ module IPT_MATSUBARA
   USE SF_CONSTANTS, only: xi,pi,one
   USE SF_ARRAYS, only:arange
   USE SF_SPECIAL, only: bethe_lattice
+  USE SF_IOTOOLS, only: free_unit
   USE DMFT_FFTGF
   USE DMFT_FFTAUX, only:fft_get_density
   implicit none
@@ -78,9 +79,8 @@ contains
   function solve_ipt_matsubara(fg0_iw) result(sigma_iw)
     complex(8),dimension(:)            :: fg0_iw
     complex(8),dimension(size(fg0_iw)) :: sigma_iw
-    ! real(8),dimension(0:size(fg0_iw))    :: fg0_tau,sigma_tau
     real(8),dimension(size(fg0_iw))    :: fg0_tau,sigma_tau
-    integer                            :: i,Lf
+    integer                            :: i,Lf,unit
     real(8)                            :: n
     Lf=size(fg0_iw)
     n = 0.5d0
@@ -92,15 +92,13 @@ contains
     C3=S1+(xmu-S0)*(xmu-S0)
     fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
     forall(i=1:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i+1)*fg0_tau(i)
-    open(11,file="Sigma_tau.ipt")
-    do i=1,Lf
-       write(11,*)(i-1)*beta/(Lf-1),sigma_tau(i)
-    enddo
-    close(11)
     sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
-    ! call fft_gf_iw2tau(fg0_iw,fg0_tau(0:),beta)
-    ! forall(i=0:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i)*fg0_tau(i)
-    ! call fft_sigma_tau2iw(sigma_iw,sigma_tau(0:),beta)
+    unit=free_unit()
+    open(unit,file="Sigma_tau.ipt")
+    do i=1,Lf
+       write(unit,*)(i-1)*beta/(Lf-1),sigma_tau(i)
+    enddo
+    close(unit)
   end function solve_ipt_matsubara
 
   !PURPOSE: Solve 2nd order perturbation theory in Matsubara normal: 

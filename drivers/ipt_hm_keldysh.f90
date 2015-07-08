@@ -5,13 +5,16 @@ program hmipt
   implicit none
 
   logical                :: converged
-  real(8)                :: n,dw!,A
-  integer                :: i,Lk,iloop
+  real(8)                :: n,dw,Wband
+  integer                :: i,L,Lk,iloop
   complex(8)             :: zeta
   complex(8),allocatable :: sigma(:),fg(:),fg0(:)
   real(8),allocatable    :: wr(:)
 
+  call parse_input_variable(L,"L",'inputIPT.in',default=10000)
+  call parse_input_variable(Wband,'wband','inputIPT.in',default=1d0)
   call read_input("inputIPT.in")
+
   allocate(fg(L))
   allocate(sigma(L))
   allocate(fg0(L))
@@ -27,7 +30,7 @@ program hmipt
      fg=zero
      do i=1,L
         zeta = cmplx(wr(i),eps) - sigma(i)
-        fg(i) = gfbether(wr(i),zeta,2.d0*ts)
+        fg(i) = gfbether(wr(i),zeta,Wband)
      enddo
      fg0     = one/(one/fg + sigma)
      sigma   = ipt_solve_keldysh(fg0,wmax)

@@ -68,7 +68,7 @@ program ahmk
         calG(2,i)=  conjg(wf0(2,L+1-i))/zdet
      end do
 
-     sigma = ipt_solve_keldysh_sc(calG,delta,wmax)
+     sigma = ipt_solve_keldysh_sc(calG,delta)
 
      write(*,"(2f14.9)",advance="no")2.d0*n,delta
      converged = check_convergence(sigma(1,:)+sigma(2,:),eps=dmft_error,N1=Nsuccess,N2=Nloop)
