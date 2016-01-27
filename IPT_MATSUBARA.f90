@@ -149,21 +149,12 @@ contains
     complex(8),dimension(:,:)                           :: fg0_iw
     complex(8),dimension(size(fg0_iw,1),size(fg0_iw,2)) :: sigma_iw
     real(8)                                             :: delta
-    complex(8),dimension(:),allocatable                 :: calG11,calG22,calF
-    real(8),dimension(:),allocatable                    :: calG11t,calG22t,calFt
-    real(8),dimension(:),allocatable                    :: sigmat,selft
+    complex(8),dimension(size(fg0_iw,2))                :: calG11,calG22,calF
+    real(8),dimension(size(fg0_iw,2))                   :: calG11t,calG22t,calFt
+    real(8),dimension(size(fg0_iw,2))                   :: sigmat,selft
     integer                                             :: i,LM
     LM=size(fg0_iw,2)
     if(size(fg0_iw,1)/=2)stop "solve_ipt_sc_matsubara_r: size(input,1)!= 2"
-    allocate(calG11(LM),calG11t(LM))
-    allocate(calG22(LM),calG22t(LM))
-    allocate(calF(LM),calFt(LM))
-    allocate(sigmat(LM),selft(LM))
-    !
-    do i=1,LM
-       write(111,*)pi/beta*(2*i-1),dimag(fg0_iw(1,i)),dreal(fg0_iw(1,i))
-       write(112,*)pi/beta*(2*i-1),dimag(fg0_iw(2,i)),dreal(fg0_iw(2,i))
-    enddo
     !GEt all components of the HFB-corrected Weiss-Fields:
     calG11  =  fg0_iw(1,:)
     calG22  = -conjg(fg0_iw(1,:))
@@ -173,17 +164,20 @@ contains
        write(212,*)pi/beta*(2*i-1),dimag(calG22(i)),dreal(calG22(i))
        write(213,*)pi/beta*(2*i-1),dimag(calF(i)),dreal(calF(i))
     enddo
+
     calG11t = f_fft_gf_iw2tau(calG11,beta)
     calG22t = f_fft_gf_iw2tau(calG22,beta)
     calFt   = f_fft_gf_iw2tau(calF,beta,[0d0,0d0,0d0,0d0])
     do i=1,LM
        write(311,*)(i-1)*beta/dble(LM-1),calG11t(i)
-       write(312,*)(i-1)*beta/dble(LM-1),calFt(i)
+       write(312,*)(i-1)*beta/dble(LM-1),calG22t(i)
+       write(313,*)(i-1)*beta/dble(LM-1),calFt(i)
     enddo
+
     !Get the 2nd-order Sigma:
     forall(i=1:LM)
-       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
-       selft(i) = Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calFt(i)
+       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)*calFt(i))*calG22t(LM-i+1)
+       selft(i) = Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)*calFt(i))*calFt(i)
     end forall
     sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta)
     sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta) - delta
@@ -196,11 +190,6 @@ contains
        write(13,*)pi/beta*(2*i-1),dreal(sigma_iw(2,i))+delta
     enddo
     close(11);close(12)
-    !
-    deallocate(calG11,calG11t)
-    deallocate(calG22,calG22t)
-    deallocate(calF,calFt)
-    deallocate(sigmat,selft)
   end function solve_ipt_sc_matsubara
 
   !PURPOSE: Solve 2nd order perturbation theory in Matsubara attractive: 
