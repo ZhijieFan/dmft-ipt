@@ -57,7 +57,7 @@ program hmipt_matsubara
      calG(2,:) =  fg0(2,:)/Gdet
 
      write(*,"(3f14.9)",advance="no")2*n,delta
-     sigma =  ipt_solve_matsubara_sc(calG,delta)
+     sigma =  ipt_solve_matsubara(calG,delta)
      converged = check_convergence(sigma(1,:)+sigma(2,:)+1.d-5,eps=dmft_error,N1=Nsuccess,N2=Nloop)
   enddo
 

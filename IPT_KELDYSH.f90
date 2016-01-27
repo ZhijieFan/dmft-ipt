@@ -56,9 +56,9 @@ contains
     ! call splot("G0less_w.1",wr_,fg0%less%w)
     ! call splot("G0gtr_w.1",wr_,fg0%gtr%w)
     ! !
-    ! fg0%ret%t  =  f_fft_rw2rt(fg0%ret%w)*dw_/pi2
-    fg0%less%t =  f_fft_rw2rt(fg0%less%w)*dw_/pi2
-    fg0%gtr%t  =  f_fft_rw2rt(fg0%gtr%w)*dw_/pi2
+    ! fg0%ret%t  =  fft_rw2rt(fg0%ret%w)*dw_/pi2
+    fg0%less%t =  fft_rw2rt(fg0%less%w)*dw_/pi2
+    fg0%gtr%t  =  fft_rw2rt(fg0%gtr%w)*dw_/pi2
     ! call splot("G0ret_t.1",t_,fg0%ret%t)
     ! call splot("G0less_t.1",t_,fg0%less%t)
     ! call splot("G0gtr_t.1",t_,fg0%gtr%t)
@@ -75,9 +75,9 @@ contains
     ! call splot("Sret_t.1",t_,Sigma%ret%t)
     ! call splot("Sless_t.1",t_,Sigma%less%t)
     ! call splot("Sgtr_t.1",t_,Sigma%gtr%t)
-    sigma%ret%w = f_fft_rt2rw(sigma%ret%t)*dt_
-    ! sigma%less%w = f_fft_rt2rw(sigma%less%t)*dt_
-    ! sigma%gtr%w = f_fft_rt2rw(sigma%gtr%t)*dt_
+    sigma%ret%w = fft_rt2rw(sigma%ret%t)*dt_
+    ! sigma%less%w = fft_rt2rw(sigma%less%t)*dt_
+    ! sigma%gtr%w = fft_rt2rw(sigma%gtr%t)*dt_
     ! call splot("Sret_w.2",wr_,Sigma%ret%w)
     ! call splot("Sless_w.2",wr_,Sigma%less%w)
     ! call splot("Sgtr_w.2",wr_,Sigma%gtr%w)
@@ -141,14 +141,14 @@ contains
     calF21%less%w = fg0k(2)%less%w
     calF21%gtr%w  = -conjg(fg0k(2)%gtr%w)
     !
-    calG11%less%t = f_fft_rw2rt(calG11%less%w)*dw_/pi2
-    calG11%gtr%t  = f_fft_rw2rt(calG11%gtr%w)*dw_/pi2
-    calG22%less%t = f_fft_rw2rt(calG22%less%w)*dw_/pi2
-    calG22%gtr%t  = f_fft_rw2rt(calG22%gtr%w)*dw_/pi2
-    calF12%less%t = f_fft_rw2rt(calF12%less%w)*dw_/pi2
-    calF12%gtr%t  = f_fft_rw2rt(calF12%gtr%w)*dw_/pi2
-    calF21%less%t = f_fft_rw2rt(calF21%less%w)*dw_/pi2
-    calF21%gtr%t  = f_fft_rw2rt(calF21%gtr%w)*dw_/pi2
+    calG11%less%t = fft_rw2rt(calG11%less%w)*dw_/pi2
+    calG11%gtr%t  = fft_rw2rt(calG11%gtr%w)*dw_/pi2
+    calG22%less%t = fft_rw2rt(calG22%less%w)*dw_/pi2
+    calG22%gtr%t  = fft_rw2rt(calG22%gtr%w)*dw_/pi2
+    calF12%less%t = fft_rw2rt(calF12%less%w)*dw_/pi2
+    calF12%gtr%t  = fft_rw2rt(calF12%gtr%w)*dw_/pi2
+    calF21%less%t = fft_rw2rt(calF21%less%w)*dw_/pi2
+    calF21%gtr%t  = fft_rw2rt(calF21%gtr%w)*dw_/pi2
 
     do i=0,M 
        sk(1)%less%t(i) = Uloc(1)*Uloc(1)*(calG11%less%t(i)*calG22%less%t(i) - calF12%less%t(i)*calF21%less%t(i))*calG22%gtr%t(M-i)
@@ -161,8 +161,8 @@ contains
     if(heaviside(0.d0)==1.d0)sk(1)%ret%t(0)=sk(1)%ret%t(0)/2.d0 
     if(heaviside(0.d0)==1.d0)sk(2)%ret%t(0)=sk(2)%ret%t(0)/2.d0
     !
-    sk(1)%ret%w = f_fft_rt2rw(sk(1)%ret%t)*dt_
-    sk(2)%ret%w = f_fft_rt2rw(sk(2)%ret%t)*dt_
+    sk(1)%ret%w = fft_rt2rw(sk(1)%ret%t)*dt_
+    sk(2)%ret%w = fft_rt2rw(sk(2)%ret%t)*dt_
     !
     sigma_(1,:) = sk(1)%ret%w
     sigma_(2,:) = -delta + sk(2)%ret%w

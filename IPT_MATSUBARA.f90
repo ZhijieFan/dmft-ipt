@@ -4,31 +4,24 @@
 !###############################################################
 module IPT_MATSUBARA
   USE IPT_VARS_GLOBAL
+  USE IPT_GF
   USE SF_LINALG, only: matrix_inverse
   USE SF_CONSTANTS, only: xi,pi,one
   USE SF_ARRAYS, only:arange
   USE SF_SPECIAL, only: bethe_lattice
   USE SF_IOTOOLS, only: free_unit
-  USE DMFT_FFTGF
-  USE DMFT_FFTAUX, only:fft_get_density
   implicit none
   private
 
   interface ipt_solve_matsubara
      module procedure solve_ipt_matsubara
+     module procedure solve_ipt_sc_matsubara
   end interface ipt_solve_matsubara
 
   interface mpt_solve_matsubara
      module procedure solve_mpt_matsubara
-  end interface mpt_solve_matsubara
-
-  interface ipt_solve_matsubara_sc
-     module procedure solve_ipt_sc_matsubara
-  end interface ipt_solve_matsubara_sc
-
-  interface mpt_solve_matsubara_sc
      module procedure solve_mpt_sc_matsubara
-  end interface mpt_solve_matsubara_sc
+  end interface mpt_solve_matsubara
 
   interface ipt_measure_dens_matsubara
      module procedure ipt_measure_dens_matsubara_SW,ipt_measure_dens_matsubara_G
@@ -41,10 +34,7 @@ module IPT_MATSUBARA
 
   !half-filling solver:
   public :: ipt_solve_matsubara
-  public :: ipt_solve_matsubara_sc
-  !away from h-f solver:
   public :: mpt_solve_matsubara
-  public :: mpt_solve_matsubara_sc
 
   public :: ipt_measure_potential_energy_matsubara
   public :: ipt_measure_kinetic_energy_matsubara
@@ -57,7 +47,7 @@ module IPT_MATSUBARA
   public :: ipt_measure_energy_matsubara
 
 
-  real(8) :: S0,S1,C0,C1,C2,C3
+  ! real(8) :: S0,S1,C0,C1,C2,C3
 
 
 contains
@@ -79,20 +69,22 @@ contains
   function solve_ipt_matsubara(fg0_iw) result(sigma_iw)
     complex(8),dimension(:)            :: fg0_iw
     complex(8),dimension(size(fg0_iw)) :: sigma_iw
-    real(8),dimension(size(fg0_iw))    :: fg0_tau,sigma_tau
+    real(8),dimension(0:size(fg0_iw))  :: fg0_tau,sigma_tau
     integer                            :: i,Lf,unit
     real(8)                            :: n
     Lf=size(fg0_iw)
     n = 0.5d0
-    S0=Uloc(1)*(n-0.5d0)
-    S1=Uloc(1)*Uloc(1)*n*(1d0-n)
-    C0=0d0
-    C1=1d0
-    C2=xmu-S0
-    C3=S1+(xmu-S0)*(xmu-S0)
-    fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
-    forall(i=1:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i+1)*fg0_tau(i)
-    sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
+    ! S0=Uloc(1)*(n-0.5d0)
+    ! S1=Uloc(1)*Uloc(1)*n*(1d0-n)
+    ! C0=0d0
+    ! C1=1d0
+    ! C2=xmu-S0
+    ! C3=S1+(xmu-S0)*(xmu-S0)
+    ! fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
+    call fft_iw2tau(fg0_iw,fg0_tau(0:),beta)
+    forall(i=0:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i)*fg0_tau(i)
+    ! sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
+    call fft_tau2iw(sigma_tau(0:),sigma_iw,beta)
     unit=free_unit()
     open(unit,file="Sigma_tau.ipt")
     do i=1,Lf
@@ -111,20 +103,17 @@ contains
     real(8)                            :: A,B,A1,A2,B1,B2
     integer                            :: i,Lf
     Lf=size(fg0_iw)
-    S0=Uloc(1)*(n-0.5d0)
-    S1=Uloc(1)*Uloc(1)*n*(1d0-n)
-    C0=0d0
-    C1=1d0
-    C2=xmu-S0
-    C3=S1+(xmu-S0)*(xmu-S0)
-    fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
-    forall(i=1:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i+1)*fg0_tau(i)
-    open(11,file="Sigma_tau.ipt")
-    do i=1,Lf
-       write(11,*)(i-1)*beta/(Lf-1),sigma_tau(i)
-    enddo
-    close(11)
-    sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
+    ! S0=Uloc(1)*(n-0.5d0)
+    ! S1=Uloc(1)*Uloc(1)*n*(1d0-n)
+    ! C0=0d0
+    ! C1=1d0
+    ! C2=xmu-S0
+    ! C3=S1+(xmu-S0)*(xmu-S0)
+    ! fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
+    call fft_iw2tau(fg0_iw,fg0_tau(0:),beta)
+    forall(i=0:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i)*fg0_tau(i)
+    ! sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
+    call fft_tau2iw(sigma_tau(0:),sigma_iw,beta)
     A1= n*(1.d0-n)
     A2= n0*(1.d0-n0)
     A = A1/A2
@@ -132,6 +121,11 @@ contains
     B2 = n0*(1.d0-n0)*Uloc(1)*Uloc(1)
     B  = B1/B2
     sigma_iw = Uloc(1)*(n-0.5d0) + A*sigma_iw/(1.d0-B*sigma_iw)
+    open(11,file="Sigma_tau.ipt")
+    do i=1,Lf
+       write(11,*)(i-1)*beta/(Lf-1),sigma_tau(i)
+    enddo
+    close(11)
   end function solve_mpt_matsubara
 
 
@@ -150,44 +144,31 @@ contains
     complex(8),dimension(size(fg0_iw,1),size(fg0_iw,2)) :: sigma_iw
     real(8)                                             :: delta
     complex(8),dimension(size(fg0_iw,2))                :: calG11,calG22,calF
-    real(8),dimension(size(fg0_iw,2))                   :: calG11t,calG22t,calFt
-    real(8),dimension(size(fg0_iw,2))                   :: sigmat,selft
+    real(8),dimension(0:size(fg0_iw,2))                 :: calG11t,calG22t,calFt
+    real(8),dimension(0:size(fg0_iw,2))                 :: sigmat,selft
     integer                                             :: i,LM
     LM=size(fg0_iw,2)
     if(size(fg0_iw,1)/=2)stop "solve_ipt_sc_matsubara_r: size(input,1)!= 2"
-    !GEt all components of the HFB-corrected Weiss-Fields:
     calG11  =  fg0_iw(1,:)
     calG22  = -conjg(fg0_iw(1,:))
     calF    =  fg0_iw(2,:)
-    do i=1,LM
-       write(211,*)pi/beta*(2*i-1),dimag(calG11(i)),dreal(calG11(i))
-       write(212,*)pi/beta*(2*i-1),dimag(calG22(i)),dreal(calG22(i))
-       write(213,*)pi/beta*(2*i-1),dimag(calF(i)),dreal(calF(i))
-    enddo
-
-    calG11t = f_fft_gf_iw2tau(calG11,beta)
-    calG22t = f_fft_gf_iw2tau(calG22,beta)
-    calFt   = f_fft_gf_iw2tau(calF,beta,[0d0,0d0,0d0,0d0])
-    do i=1,LM
-       write(311,*)(i-1)*beta/dble(LM-1),calG11t(i)
-       write(312,*)(i-1)*beta/dble(LM-1),calG22t(i)
-       write(313,*)(i-1)*beta/dble(LM-1),calFt(i)
-    enddo
-
+    call fft_iw2tau(calG11,calG11t(0:),beta)
+    call fft_iw2tau(calG22,calG22t(0:),beta)
+    call fft_iw2tau(calF,calFt(0:),beta,notail=.true.)
     !Get the 2nd-order Sigma:
-    forall(i=1:LM)
-       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)*calFt(i))*calG22t(LM-i+1)
-       selft(i) = Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)*calFt(i))*calFt(i)
+    forall(i=0:LM)
+       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)*calFt(i))*calG22t(LM-i)
+       selft(i) =-Uloc(1)*Uloc(1)*(calFt(i)*calFt(i)     - calG11t(i)*calG22t(i))*calFt(i)
     end forall
-    sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta)
-    sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta) - delta
+    call fft_tau2iw(Sigmat(0:),sigma_iw(1,:),beta)
+    call fft_tau2iw(Selft(0:),sigma_iw(2,:),beta)
+    sigma_iw(2,:)=sigma_iw(2,:)-delta    
     !
     open(11,file="Sigma_tau.ipt")
     open(12,file="Self_tau.ipt")
-    do i=1,LM
-       write(11,*)(i-1)*beta/dble(LM-1),sigmat(i)
-       write(12,*)(i-1)*beta/dble(LM-1),selft(i)
-       write(13,*)pi/beta*(2*i-1),dreal(sigma_iw(2,i))+delta
+    do i=0,LM
+       write(11,*)i*beta/LM,sigmat(i)
+       write(12,*)i*beta/LM,selft(i)
     enddo
     close(11);close(12)
   end function solve_ipt_sc_matsubara
@@ -198,34 +179,29 @@ contains
   function solve_mpt_sc_matsubara(fg0_iw,n,n0,delta,delta0) result(sigma_iw)
     complex(8),dimension(:,:)                           :: fg0_iw
     complex(8),dimension(size(fg0_iw,1),size(fg0_iw,2)) :: sigma_iw
-    complex(8),dimension(:),allocatable                 :: calG11,calG22,calF
-    real(8),dimension(:),allocatable                    :: calG11t,calG22t,calFt
-    real(8),dimension(:),allocatable                    :: sigmat,selft
+    complex(8),dimension(size(fg0_iw,2))                :: calG11,calG22,calF
+    real(8),dimension(0:size(fg0_iw,2))                 :: calG11t,calG22t,calFt
+    real(8),dimension(0:size(fg0_iw,2))                 :: sigmat,selft
     integer                                             :: i,LM
     real(8)                                             :: n,n0
     real(8)                                             :: delta,delta0
     real(8)                                             :: A,B
     LM=size(fg0_iw,2)
     if(size(fg0_iw,1)/=2)stop "solve_mipt_sc_matsubara_r: size(input,1)!= 2"
-    allocate(calG11(LM),calG11t(LM))
-    allocate(calG22(LM),calG22t(LM))
-    allocate(calF(LM),calFt(LM))
-    allocate(sigmat(LM),selft(LM))
-    !
     !GEt all components of the HFB-corrected Weiss-Fields:
     calG11  =  fg0_iw(1,:)
     calG22  = -conjg(fg0_iw(1,:))
     calF    =  fg0_iw(2,:)
-    calG11t = f_fft_gf_iw2tau(calG11,beta,[0d0,1d0,0d0,0d0])
-    calG22t = f_fft_gf_iw2tau(calG22,beta,[0d0,1d0,0d0,0d0])
-    calFt   = f_fft_gf_iw2tau(calF,beta,[0d0,0d0,0d0,0d0])
+    call fft_iw2tau(calG11,calG11t(0:),beta)
+    call fft_iw2tau(calG22,calG22t(0:),beta)
+    call fft_iw2tau(calF,calFt(0:),beta,notail=.true.)
     !Get the 2nd-order Sigma:
     forall(i=1:LM)
        sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
        selft(i)=  Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calFt(i)
     end forall
-    sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta,[0d0,0d0])
-    sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta,[0d0,0d0])
+    call fft_tau2iw(Sigmat(0:),sigma_iw(1,:),beta)
+    call fft_tau2iw(Selft(0:),sigma_iw(2,:),beta)
     !
     A=Uloc(1)*Uloc(1)*n*(1.d0-n)-delta**2
     B=Uloc(1)*Uloc(1)*n0*(1.d0-n0)-delta0**2
@@ -240,10 +216,6 @@ contains
     enddo
     close(11);close(12)
     !
-    deallocate(calG11,calG11t)
-    deallocate(calG22,calG22t)
-    deallocate(calF,calFt)
-    deallocate(sigmat,selft)
   end function solve_mpt_sc_matsubara
 
 
@@ -277,12 +249,12 @@ contains
     real(8)                           :: ipt_dens
     Green = one/Weiss - Sigma
     Green = one/Green
-    ipt_dens = fft_get_density(Green,beta)
+    ipt_dens = fft_gbeta_minus(Green,beta)
   end function ipt_measure_dens_matsubara_SW
   function ipt_measure_dens_matsubara_G(Green) result(ipt_dens)
     complex(8),dimension(:)           :: Green
     real(8)                           :: ipt_dens
-    ipt_dens = fft_get_density(Green,beta)
+    ipt_dens = fft_gbeta_minus(Green,beta)
   end function ipt_measure_dens_matsubara_G
 
   !PURPOSE: measure renormalization constant zeta
@@ -354,7 +326,7 @@ contains
     real(8)                           :: ipt_Ehartree,n
     Green = one/Weiss - Sigma
     Green = one/Green
-    n = fft_get_density(Green,beta)
+    n = fft_gbeta_minus(Green,beta)
     ipt_Ehartree = -Uloc(1)*n + Uloc(1)*0.25d0 
   end function ipt_measure_hartree_energy_matsubara
 
