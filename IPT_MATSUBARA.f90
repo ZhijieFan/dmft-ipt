@@ -160,26 +160,40 @@ contains
     allocate(calF(LM),calFt(LM))
     allocate(sigmat(LM),selft(LM))
     !
+    do i=1,LM
+       write(111,*)pi/beta*(2*i-1),dimag(fg0_iw(1,i)),dreal(fg0_iw(1,i))
+       write(112,*)pi/beta*(2*i-1),dimag(fg0_iw(2,i)),dreal(fg0_iw(2,i))
+    enddo
     !GEt all components of the HFB-corrected Weiss-Fields:
     calG11  =  fg0_iw(1,:)
     calG22  = -conjg(fg0_iw(1,:))
     calF    =  fg0_iw(2,:)
-    calG11t = f_fft_gf_iw2tau(calG11,beta,[0d0,1d0,0d0,0d0])
-    calG22t = f_fft_gf_iw2tau(calG22,beta,[0d0,1d0,0d0,0d0])
+    do i=1,LM
+       write(211,*)pi/beta*(2*i-1),dimag(calG11(i)),dreal(calG11(i))
+       write(212,*)pi/beta*(2*i-1),dimag(calG22(i)),dreal(calG22(i))
+       write(213,*)pi/beta*(2*i-1),dimag(calF(i)),dreal(calF(i))
+    enddo
+    calG11t = f_fft_gf_iw2tau(calG11,beta)
+    calG22t = f_fft_gf_iw2tau(calG22,beta)
     calFt   = f_fft_gf_iw2tau(calF,beta,[0d0,0d0,0d0,0d0])
+    do i=1,LM
+       write(311,*)(i-1)*beta/dble(LM-1),calG11t(i)
+       write(312,*)(i-1)*beta/dble(LM-1),calFt(i)
+    enddo
     !Get the 2nd-order Sigma:
     forall(i=1:LM)
        sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
-       selft(i) =-Uloc(1)*Uloc(1)*(calFt(i)**2           - calG11t(i)*calG22t(i))*calFt(i)
+       selft(i) = Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calFt(i)
     end forall
-    sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta,[0d0,0d0])
-    sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta,[0d0,0d0]) - delta
+    sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta)
+    sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta) - delta
     !
     open(11,file="Sigma_tau.ipt")
     open(12,file="Self_tau.ipt")
     do i=1,LM
        write(11,*)(i-1)*beta/dble(LM-1),sigmat(i)
        write(12,*)(i-1)*beta/dble(LM-1),selft(i)
+       write(13,*)pi/beta*(2*i-1),dreal(sigma_iw(2,i))+delta
     enddo
     close(11);close(12)
     !
@@ -219,7 +233,7 @@ contains
     !Get the 2nd-order Sigma:
     forall(i=1:LM)
        sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
-       selft(i)= -Uloc(1)*Uloc(1)*(calFt(i)**2 - calG11t(i)*calG22t(i))*calFt(i)
+       selft(i)=  Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calFt(i)
     end forall
     sigma_iw(1,:) = f_fft_sigma_tau2iw(sigmat,beta,[0d0,0d0])
     sigma_iw(2,:) = f_fft_sigma_tau2iw(selft,beta,[0d0,0d0])

@@ -1,11 +1,11 @@
 ##$ COMPILER: suppprted compilers are ifort, gnu >v4.7
 ##$ use mpif90 for parallel compiler
-FC=ifort
+FC=gfortran
 
 ##$ PLATFORM: supported platform are intel, gnu
 ##$ if using a parallel compiler (mpif90) check
 ##$ platform first using the cmd: $mpif90 -show
-PLAT=intel
+PLAT=gnu
 
 ##$ PRECOMPILATION FLAGS
 ##$ Leave blank for SERIAL CODE
@@ -27,10 +27,10 @@ LIBDIR=/opt
 #EXE=ipt_hm_keldysh
 
 ##ATTRACTIVE HUBBARD
-#EXE=ipt_ahm_matsubara
+EXE=ipt_ahm_matsubara
 #EXE=ipt_ahm_real
 #EXE=ipt_ahm_keldysh
-EXE=ipt_ahm_keldysh_bias
+#EXE=ipt_ahm_keldysh_bias
 
 
 ##$ SET THE LOCATION OF YOU PROGRAM DRIVER (default is ./drivers)
