@@ -282,7 +282,8 @@ contains
        endif
        forall(i=1:L)tmpGw(2*i)  = gw(i)
        call fft(tmpGw)
-       tmpGt = dreal(tmpGw)*2*size(tmpGw)/beta
+       tmpGt = -dreal(tmpGw)*2*size(tmpGw)/beta
+       tmpGt(L)=-tmpGt(0)
        gt(0:L-1) = tmpGt(0:L-1)
        gt(L)=-gt(0)
     end select

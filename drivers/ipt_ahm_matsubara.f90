@@ -5,24 +5,24 @@ program hmipt_matsubara
   implicit none
 
   integer                :: i,ik,Lk,iloop,L
-  logical                :: converged
-  complex(8)             :: zeta,zeta1,zeta2,cdet,x1,x2,zsqrt
-  real(8)                :: n,delta,D
+  logical                :: converged,bcsflag
+  complex(8)             :: zeta,zeta1,zeta2,x1,x2,zsqrt
+  real(8)                :: n,delta,D,cdet,delta0
   !
   complex(8),allocatable :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:),Gdet(:)
-  real(8),allocatable    :: fgt(:,:)
   !
   real(8),allocatable    :: wt(:),epsik(:),wm(:)
 
   call parse_input_variable(L,"L","inputIPT.conf",default=4096)
   call parse_input_variable(D,"wband","inputIPT.conf",default=1d0)
   call parse_input_variable(Lk,"Lk","inputIPT.conf",default=1000)
+  call parse_input_variable(bcsflag,"BCSFLAG","inputIPT.conf",default=.false.)
   call read_input("inputIPT.conf")
 
   allocate(wm(L))
   wm  = pi/beta*(2*arange(1,L)-1)
 
-  allocate(fg(2,L),fgt(2,L))
+  allocate(fg(2,L))
   allocate(fg0(2,L),sigma(2,L),calG(2,L),Gdet(L))
 
   allocate(wt(Lk),epsik(Lk))
@@ -45,10 +45,10 @@ program hmipt_matsubara
            fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet
         enddo
      enddo
-     n = fft_get_density(fg(1,:),beta)!
-     delta = Uloc(1)*fft_get_density(fg(2,:),beta,[0d0,0d0,0d0,0d0])
+     n = ipt_measure_dens_matsubara(fg(1,:))
+     delta = Uloc(1)*ipt_measure_phi_matsubara(fg(2,:))
 
-     Gdet       = abs(fg(1,:))**2 + (fg(2,:))**2
+     Gdet     = abs(fg(1,:))**2 + (fg(2,:))**2
      fg0(1,:) =  conjg(fg(1,:))/Gdet + sigma(1,:)
      fg0(2,:) =  fg(2,:)/Gdet        + sigma(2,:) + delta
 
@@ -57,8 +57,12 @@ program hmipt_matsubara
      calG(2,:) =  fg0(2,:)/Gdet
 
      write(*,"(3f14.9)",advance="no")2*n,delta
-     sigma =  ipt_solve_matsubara(calG,delta)
-     converged = check_convergence(sigma(1,:)+sigma(2,:)+1.d-5,eps=dmft_error,N1=Nsuccess,N2=Nloop)
+     if(bcsflag)then
+        sigma(2,:)=-delta ; sigma(1,:)=zero
+     else
+        sigma =  ipt_solve_matsubara(calG,delta)
+     endif
+     converged = check_convergence(calG(1,:)+calG(2,:),eps=dmft_error,N1=Nsuccess,N2=Nloop)
   enddo
 
   call splot("Sigma_iw.ipt",wm,sigma(1,:),append=.false.)

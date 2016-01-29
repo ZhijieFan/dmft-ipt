@@ -49,7 +49,7 @@ endif
 
 
 ifeq ($(PLAT),gnu)
-INCARGS=-I$(LIBDIR)/scifor/gnu/include -I$(LIBDIR)/dmft_tools/gnu/include
+INCARGS=-I$(LIBDIR)/scifor/gnu/include -L$(LIBDIR)/scifor/gnu/lib #-I$(LIBDIR)/dmft_tools/gnu/include
 FFLAG += -ffree-line-length-none $(INCARGS)
 endif
 
@@ -63,7 +63,6 @@ endif
 ##$ ELSE:
 ##$ 
 ARGS=  -ldmftt -lscifor -lfftpack -llapack -lblas -lminpack
-
 
 
 ##$ REVISION SOFTWARE VARIABLES

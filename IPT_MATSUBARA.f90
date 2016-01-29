@@ -40,6 +40,7 @@ module IPT_MATSUBARA
   public :: ipt_measure_kinetic_energy_matsubara
   public :: ipt_measure_hartree_energy_matsubara
   public :: ipt_measure_dens_matsubara
+  public :: ipt_measure_phi_matsubara
   public :: ipt_measure_docc_matsubara
   public :: ipt_measure_zeta_matsubara
   !
@@ -148,7 +149,7 @@ contains
     real(8),dimension(0:size(fg0_iw,2))                 :: sigmat,selft
     integer                                             :: i,LM
     LM=size(fg0_iw,2)
-    if(size(fg0_iw,1)/=2)stop "solve_ipt_sc_matsubara_r: size(input,1)!= 2"
+    if(size(fg0_iw,1)/=2)stop "solve_ipt_sc_matsubara: size(input,1)!= 2"
     calG11  =  fg0_iw(1,:)
     calG22  = -conjg(fg0_iw(1,:))
     calF    =  fg0_iw(2,:)
@@ -162,7 +163,7 @@ contains
     end forall
     call fft_tau2iw(Sigmat(0:),sigma_iw(1,:),beta)
     call fft_tau2iw(Selft(0:),sigma_iw(2,:),beta)
-    sigma_iw(2,:)=sigma_iw(2,:)-delta    
+    sigma_iw(2,:)=sigma_iw(2,:)-delta
     !
     open(11,file="Sigma_tau.ipt")
     open(12,file="Self_tau.ipt")
@@ -256,6 +257,13 @@ contains
     real(8)                           :: ipt_dens
     ipt_dens = fft_gbeta_minus(Green,beta)
   end function ipt_measure_dens_matsubara_G
+
+
+  function ipt_measure_phi_matsubara(Green) result(ipt_phi)
+    complex(8),dimension(:)           :: Green
+    real(8)                           :: ipt_phi
+    ipt_phi = fft_gbeta_minus(Green,beta,notail=.true.)
+  end function ipt_measure_phi_matsubara
 
   !PURPOSE: measure renormalization constant zeta
   function ipt_measure_zeta_matsubara(Sigma,Weiss) result(ipt_zeta)
