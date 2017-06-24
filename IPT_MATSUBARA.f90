@@ -5,7 +5,7 @@
 module IPT_MATSUBARA
   USE IPT_VARS_GLOBAL
   USE IPT_GF
-  USE SF_LINALG, only: matrix_inverse
+  USE SF_LINALG, only: inv
   USE SF_CONSTANTS, only: xi,pi,one
   USE SF_ARRAYS, only:arange
   USE SF_SPECIAL, only: bethe_lattice
@@ -66,6 +66,7 @@ contains
   !+-------------------------------------------------------------------+
   !PURPOSE: Solve 2nd order perturbation theory in Matsubara normal: 
   ! - half-filling
+  ! - away-from-half-filling
   !+-------------------------------------------------------------------+
   function solve_ipt_matsubara(fg0_iw) result(sigma_iw)
     complex(8),dimension(:)            :: fg0_iw
@@ -75,45 +76,27 @@ contains
     real(8)                            :: n
     Lf=size(fg0_iw)
     n = 0.5d0
-    ! S0=Uloc(1)*(n-0.5d0)
-    ! S1=Uloc(1)*Uloc(1)*n*(1d0-n)
-    ! C0=0d0
-    ! C1=1d0
-    ! C2=xmu-S0
-    ! C3=S1+(xmu-S0)*(xmu-S0)
-    ! fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
     call fft_iw2tau(fg0_iw,fg0_tau(0:),beta)
     forall(i=0:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i)*fg0_tau(i)
-    ! sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
     call fft_tau2iw(sigma_tau(0:),sigma_iw,beta)
     unit=free_unit()
     open(unit,file="Sigma_tau.ipt")
-    do i=1,Lf
-       write(unit,*)(i-1)*beta/(Lf-1),sigma_tau(i)
+    do i=0,Lf
+       write(unit,*)i*beta/Lf,sigma_tau(i)
     enddo
     close(unit)
   end function solve_ipt_matsubara
 
-  !PURPOSE: Solve 2nd order perturbation theory in Matsubara normal: 
-  ! - away-from-half-filling
   function solve_mpt_matsubara(fg0_iw,n,n0,xmu0) result(sigma_iw)
     complex(8),dimension(:)            :: fg0_iw
     complex(8),dimension(size(fg0_iw)) :: sigma_iw
-    real(8),dimension(size(fg0_iw))    :: fg0_tau,sigma_tau
+    real(8),dimension(0:size(fg0_iw))  :: fg0_tau,sigma_tau
     real(8)                            :: n,n0,xmu0
     real(8)                            :: A,B,A1,A2,B1,B2
     integer                            :: i,Lf
     Lf=size(fg0_iw)
-    ! S0=Uloc(1)*(n-0.5d0)
-    ! S1=Uloc(1)*Uloc(1)*n*(1d0-n)
-    ! C0=0d0
-    ! C1=1d0
-    ! C2=xmu-S0
-    ! C3=S1+(xmu-S0)*(xmu-S0)
-    ! fg0_tau  = f_fft_gf_iw2tau(fg0_iw,beta,[C0,C1,C2,C3])
     call fft_iw2tau(fg0_iw,fg0_tau(0:),beta)
     forall(i=0:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i)*fg0_tau(i)
-    ! sigma_iw = f_fft_sigma_tau2iw(sigma_tau,beta,[S0,S1])
     call fft_tau2iw(sigma_tau(0:),sigma_iw,beta)
     A1= n*(1.d0-n)
     A2= n0*(1.d0-n0)
@@ -123,8 +106,8 @@ contains
     B  = B1/B2
     sigma_iw = Uloc(1)*(n-0.5d0) + A*sigma_iw/(1.d0-B*sigma_iw)
     open(11,file="Sigma_tau.ipt")
-    do i=1,Lf
-       write(11,*)(i-1)*beta/(Lf-1),sigma_tau(i)
+    do i=0,Lf
+       write(11,*)i*beta/Lf,sigma_tau(i)
     enddo
     close(11)
   end function solve_mpt_matsubara
@@ -197,9 +180,9 @@ contains
     call fft_iw2tau(calG22,calG22t(0:),beta)
     call fft_iw2tau(calF,calFt(0:),beta,notail=.true.)
     !Get the 2nd-order Sigma:
-    forall(i=1:LM)
-       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calG22t(LM-i+1)
-       selft(i)=  Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)**2)*calFt(i)
+    forall(i=0:LM)
+       sigmat(i)= Uloc(1)*Uloc(1)*(calG11t(i)*calG22t(i) - calFt(i)*calFt(i))*calG22t(LM-i)
+       selft(i) =-Uloc(1)*Uloc(1)*(calFt(i)*calFt(i)     - calG11t(i)*calG22t(i))*calFt(i)
     end forall
     call fft_tau2iw(Sigmat(0:),sigma_iw(1,:),beta)
     call fft_tau2iw(Selft(0:),sigma_iw(2,:),beta)
@@ -211,9 +194,9 @@ contains
     !
     open(11,file="Sigma_tau.ipt")
     open(12,file="Self_tau.ipt")
-    do i=1,LM
-       write(11,*)(i-1)*beta/dble(LM-1),sigmat(i)
-       write(12,*)(i-1)*beta/dble(LM-1),selft(i)
+    do i=0,LM
+       write(11,*)i*beta/LM,sigmat(i)
+       write(12,*)i*beta/LM,selft(i)
     enddo
     close(11);close(12)
     !
@@ -247,9 +230,15 @@ contains
   function ipt_measure_dens_matsubara_SW(Sigma,Weiss) result(ipt_dens)
     complex(8),dimension(:)           :: Sigma
     complex(8),dimension(size(Sigma)) :: Weiss,Green
+    real(8),dimension(0:size(Sigma)) :: Gtau
     real(8)                           :: ipt_dens
+    integer :: i
     Green = one/Weiss - Sigma
     Green = one/Green
+    call fft_iw2tau(Green,Gtau(0:),beta)
+    do i=0,size(Sigma)
+       write(450,*)i*beta/size(Sigma),Gtau(i)
+    enddo
     ipt_dens = fft_gbeta_minus(Green,beta)
   end function ipt_measure_dens_matsubara_SW
   function ipt_measure_dens_matsubara_G(Green) result(ipt_dens)
@@ -390,7 +379,7 @@ contains
           Gk = (xi*wm(i)+xmu)*Zk(:,:) - Hk(:,:,ik) - Sigma(:,:,i)
           select case(No)
           case default
-             call matrix_inverse(Gk)
+             call inv(Gk)
           case(1)
              Gk = 1d0/Gk
           end select

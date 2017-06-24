@@ -7,15 +7,16 @@ program hmipt_matsubara
   integer                :: i,ik,Lk,iloop,L
   logical                :: converged,bcsflag
   complex(8)             :: zeta,zeta1,zeta2,x1,x2,zsqrt
-  real(8)                :: n,delta,D,cdet,delta0
+  real(8)                :: n,delta,D,cdet,delta0,Ds(2),alpha
   !
-  complex(8),allocatable :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:),Gdet(:)
+  complex(8),allocatable :: fg(:,:),fg0(:,:),sigma(:,:),calG(:,:),Gdet(:),calG_prev(:,:)
   !
   real(8),allocatable    :: wt(:),epsik(:),wm(:)
 
   call parse_input_variable(L,"L","inputIPT.conf",default=4096)
   call parse_input_variable(D,"wband","inputIPT.conf",default=1d0)
   call parse_input_variable(Lk,"Lk","inputIPT.conf",default=1000)
+  call parse_input_variable(alpha,"alpha","inputIPT.conf",default=0.5d0)
   call parse_input_variable(bcsflag,"BCSFLAG","inputIPT.conf",default=.false.)
   call read_input("inputIPT.conf")
 
@@ -23,7 +24,7 @@ program hmipt_matsubara
   wm  = pi/beta*(2*arange(1,L)-1)
 
   allocate(fg(2,L))
-  allocate(fg0(2,L),sigma(2,L),calG(2,L),Gdet(L))
+  allocate(fg0(2,L),sigma(2,L),calG(2,L),Gdet(L),calG_prev(2,L))
 
   allocate(wt(Lk),epsik(Lk))
   call bethe_lattice(wt,epsik,Lk,D)
@@ -45,24 +46,34 @@ program hmipt_matsubara
            fg(2,i)=fg(2,i) - wt(ik)*sigma(2,i)/cdet
         enddo
      enddo
+
+
      n = ipt_measure_dens_matsubara(fg(1,:))
      delta = Uloc(1)*ipt_measure_phi_matsubara(fg(2,:))
+
+     Ds(1) = get_ds1()
+     Ds(2) = get_ds2()
 
      Gdet     = abs(fg(1,:))**2 + (fg(2,:))**2
      fg0(1,:) =  conjg(fg(1,:))/Gdet + sigma(1,:)
      fg0(2,:) =  fg(2,:)/Gdet        + sigma(2,:) + delta
 
+
      Gdet      =  abs(fg0(1,:))**2 + (fg0(2,:))**2
      calG(1,:) =  conjg(fg0(1,:))/Gdet
      calG(2,:) =  fg0(2,:)/Gdet
 
-     write(*,"(3f14.9)",advance="no")2*n,delta
+     write(*,"(5f14.9)",advance="no")2*n,delta,Ds(1),Ds(2)
+     if(iloop>1)calG= alpha*calG + (1d0-alpha)*calG_prev
+     calG_prev =  calG
+
      if(bcsflag)then
         sigma(2,:)=-delta ; sigma(1,:)=zero
      else
         sigma =  ipt_solve_matsubara(calG,delta)
      endif
      converged = check_convergence(calG(1,:)+calG(2,:),eps=dmft_error,N1=Nsuccess,N2=Nloop)
+
   enddo
 
   call splot("Sigma_iw.ipt",wm,sigma(1,:),append=.false.)
@@ -71,7 +82,7 @@ program hmipt_matsubara
   call splot("F_iw.ipt",wm,fg(2,:),append=.false.)
   call splot("calG_iw.ipt",wm,calG(1,:),append=.false.)
   call splot("calF_iw.ipt",wm,calG(2,:),append=.false.)
-  call splot("observables.ipt",uloc(1),beta,n,delta,append=.false.)
+  call splot("observables.ipt",uloc(1),n,delta,Ds(1),Ds(2),append=.false.)
 
   call get_sc_internal_energy
 
@@ -94,6 +105,86 @@ contains
        sigma(2,:)=-delta ; sigma(1,:)=zero
     endif
   end subroutine get_initial_sigma
+
+
+  function get_ds1 result(Ds)
+    integer    :: i,ik
+    real(8)    :: Ds,nk,vk,Dssum,matssum,dens,chisum,Chij
+    real(8)    :: Ekin
+    complex(8) :: iw,gkw,fkw,g0kw,f0kw
+    real(8)    :: Sigma_infty,S_infty,det,det_infty,csi,Ei,free
+    !Get asymptotic self-energies
+    Sigma_infty =   dreal(sigma(1,L))
+    S_infty     =   dreal(sigma(2,L))
+    !
+    !1. Ds = 4/beta\sum_mats \int_ek N(ek)V(ek)F(ek,iw)F(ek,iw)
+    !1.:
+    !N(ek) = wtk(ik) (DOS)
+    !V(ek) = (D**2 - ek**2)/3.d0
+    Ds=0.d0                       ! superfluid stiffness (Bethe)
+    do ik=1,Lk
+       Dssum   = 0.d0
+       nk = wt(ik)
+       vk = (D**2-epsik(ik)**2)/3.d0
+       do i=1,L
+          iw       = xi*wm(i)
+          det      = abs(iw+xmu-epsik(ik)-sigma(1,i))**2 + dreal(sigma(2,i))**2
+          gkw = (-iw+xmu - epsik(ik) - conjg(sigma(1,i)) )/det
+          fkw = -sigma(2,i)/det
+          Dssum   = Dssum    +  fkw*fkw
+       enddo
+       Ds=Ds + 2d0*4d0/beta*nk*vk*Dssum
+    enddo
+  end function get_ds1
+
+
+
+
+
+  function get_ds2 result(Ds)
+    integer    :: i,ik
+    real(8)    :: Ds,nk,vk,Dssum,matssum,dens,chisum,Chij
+    real(8)    :: Ekin
+    complex(8) :: zeta,g11kw,g22kw,fkw,g0kw,f0kw
+    real(8)    :: Sigma_infty,S_infty,det,det_infty,csi,Ei,free
+    !Get asymptotic self-energies
+    Sigma_infty =   dreal(sigma(1,L))
+    S_infty     =   dreal(sigma(2,L))
+    !
+    !2. Ds = -Ekin - \chi_jj(q=0,\omega=0)
+    !
+    !2. 
+    ! - get Ekin:
+    Ekin=0d0
+    Chij=0d0
+    do ik=1,Lk
+       vk    = (D**2-epsik(ik)**2)/3.d0
+       csi   = epsik(ik)-(xmu-Sigma_infty)
+       Ei    = dsqrt(csi**2 + S_infty**2)
+       free  = 0.5d0*(1d0 - csi/Ei)*dtanh(0.5d0*beta*Ei)
+       matssum=0d0
+       chisum =0d0
+       do i=1,L
+          zeta      = xi*wm(i)+xmu-sigma(1,i)
+          det       = abs(zeta-epsik(ik))**2 + dreal(sigma(2,i))**2
+          g11kw     = conjg(zeta - epsik(ik))/det
+          fkw       = -sigma(2,i)/det
+          !
+          det_infty = wm(i)**2 + (epsik(ik)-(xmu-Sigma_infty))**2 + S_infty**2
+          g0kw      = (-xi*wm(i) - (epsik(ik)-(xmu-Sigma_infty)))/det_infty
+          f0kw      =-S_infty/det_infty
+          !
+          matssum   =  matssum +  dreal(g11kw)-dreal(g0kw)
+          chisum    =  chisum  + abs(g11kw)**2 + dreal(fkw)**2
+       enddo
+       nk    = 4d0/beta*matssum + 2d0*free
+       chisum=-2d0/beta*chisum
+       Ekin  = Ekin   + wt(ik)*nk*epsik(ik)
+       Chij  = Chij   + wt(ik)*vk*chisum
+    enddo
+    Ds = -Ekin-Chij
+  end function get_ds2
+
 
 
 
@@ -172,8 +263,8 @@ contains
 
     Eint=kin+Epot
 
-    Ds=zero
-    Ds = sum(fg(2,:)*fg(2,:))/beta*2.d0
+    ! Ds=zero
+    ! Ds = sum(fg(2,:)*fg(2,:))/beta*2.d0
 
     ! kinsim=zero
     ! do i=1,L

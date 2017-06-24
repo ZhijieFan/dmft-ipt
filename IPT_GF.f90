@@ -256,7 +256,7 @@ contains
           if(i>n)tmpGw(2*i)= tail
        enddo
        call fft(tmpGw)
-       tmpGt = -dreal(tmpGw)*2*size(tmpGw)/beta
+       tmpGt(-L:L-1) = -dreal(tmpGw)*2*size(tmpGw)/beta
        do i=0,L-1
           tau=real(i,8)*dtau
           if(mues > 0.d0)then
@@ -282,7 +282,7 @@ contains
        endif
        forall(i=1:L)tmpGw(2*i)  = gw(i)
        call fft(tmpGw)
-       tmpGt = -dreal(tmpGw)*2*size(tmpGw)/beta
+       tmpGt(-L:L-1) = -dreal(tmpGw)*2*size(tmpGw)/beta
        tmpGt(L)=-tmpGt(0)
        gt(0:L-1) = tmpGt(0:L-1)
        gt(L)=-gt(0)
@@ -306,7 +306,7 @@ contains
     allocate(Igt(-M:M),Igw(2*M))
     call interp(gt(0:L),Igt(0:M),L,M)
     forall(i=1:M)Igt(-i)=-Igt(M-i) !Valid for every fermionic GF (bosonic case not here)
-    Igw = Igt
+    Igw = Igt(-M:M-1)
     call ifft(Igw)
     forall(i=1:n)gw(i)=-Igw(2*i)/size(Igw)*beta
     deallocate(Igt,Igw)

@@ -1,7 +1,7 @@
 module IPT_VARS_GLOBAL
   USE SF_CONSTANTS
-  USE SCIFOR_VERSION
-  USE DMFT_PARSE_INPUT
+  USE SF_VERSION
+  USE SF_PARSE_INPUT
 
   implicit none
 
@@ -48,7 +48,9 @@ contains
     call parse_input_variable(deltasc,"DELTASC",inputFILE,default=0.1d0,comment="superconducting channel breaking symmetry parameter")
 
     call save_input_file(INPUTFILE)
-    call sf_version(revision)
+    !
+    call scifor_version()
+    call code_version(revision)
 
   end subroutine read_input
 

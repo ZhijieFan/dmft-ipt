@@ -8,8 +8,8 @@ program hmipt_matsubara
   real(8)                :: wmix,D
   integer                :: i,iloop,L
   complex(8)             :: zeta
-  complex(8),allocatable :: fg(:),fg0(:),sigma(:),GFold(:)
-  real(8),allocatable    :: wm(:)
+  complex(8),allocatable :: fg(:),fg0(:),sigma(:),GFold(:),delta(:)
+  real(8),allocatable    :: wm(:),gtau(:)
   real(8)                :: n,docc,z,energy(3)
   character(len=24)      :: finput
 
@@ -42,7 +42,7 @@ program hmipt_matsubara
         zeta = xi*wm(i) - sigma(i)
         fg(i) = gfbethe(wm(i),zeta,D)
      enddo
-     n   = fft_get_density(fg,beta)
+     n    = ipt_measure_dens_matsubara(fg)
      GFold=fg0
      fg0 = one/(one/fg + sigma)
      if(iloop>1)fg0 = wmix*fg0 + (1.d0-wmix)*GFold
@@ -58,11 +58,22 @@ program hmipt_matsubara
      call splot("observables_all.ipt",n,docc,z)
      converged=check_convergence(fg0,dmft_error,nsuccess,nloop)
   enddo
+
+  allocate(delta(L))
+  !delta = iw + mu - hloc - one/fg0
+  delta = xi*wm+xmu-one/fg0
   call splot("G_iw.ipt",wm,fg)
   call splot("G0_iw.ipt",wm,fg0)
+  call splot("Delta_iw.ipt",wm,delta)
   call splot("Sigma_iw.ipt",wm,sigma)
+
+  allocate(gtau(0:512))
+  call fft_gf_iw2tau(fg(:),gtau(0:),beta)
+  call splot("G_tau.ipt",linspace(0d0,beta,513), gtau(0:))
+
   energy = ipt_measure_energy_matsubara(Sigma,fg0,100,D)
   call splot("observables_last.ipt",n,z,docc,energy(1),energy(2),energy(3))
+
 contains
 
   subroutine get_inital_sigma(self,file)
