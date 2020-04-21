@@ -1,48 +1,86 @@
-program hmipt
+program hmipt_real
   USE DMFT_IPT
   USE SCIFOR
   USE DMFT_TOOLS
+
   implicit none
-  integer                :: i,iloop,L
-  logical                :: converged
-  complex(8)             :: zeta
-  real(8)                :: n,wband,wmix,dt,tmax,dw
-  real(8),allocatable    :: wr(:),time(:)
-  complex(8),allocatable :: sigma(:),fg(:),fg0(:),sold(:),sigt(:),sigw(:)
+  logical                                 :: converged,check
+  real(8)                                 :: wmix,D
+  integer                                 :: i,ik,iloop,L,Lk,Nx,unit
+  complex(8)                              :: zeta
+  complex(8),allocatable                  :: fg(:),fg0(:),sigma(:),fg0_prev(:)
+  real(8),allocatable                     :: wreal(:)
+  real(8)                                 :: n,docc,z,wmin
+  character(len=24)                       :: finput
+  real(8),dimension(:),allocatable        :: Wtk
+  complex(8),dimension(:,:,:),allocatable :: Hk
 
-  call parse_input_variable(L,"L",'inputIPT.in',default=10000)
-  call parse_input_variable(Wband,'wband','inputIPT.in',default=1d0)
-  call parse_input_variable(wmix,'wmix','inputIPT.in',default=1d0)
-  call read_input("inputIPT.in")
-  allocate(fg(L),sigma(L),fg0(L),wr(L),sold(L))
+  call parse_cmd_variable(finput,"finput",default="inputIPT.conf")
+  call parse_input_variable(D,"D",finput,default=1d0)
+  call parse_input_variable(L,"L",finput,default=2000)
+  call parse_input_variable(wmix,"WMIX",finput,default=0.5d0)
+  call read_input(finput)
 
-  wr=linspace(-wmax,wmax,L,mesh=dw)
-  dt= pi/wmax
-  tmax=dt*L/2
-  allocate(time(L),sigt(L))
-  time = linspace(-tmax,tmax-dt,L)
 
-  sigma=zero ; iloop=0 ; converged=.false.       
-  do while (.not.converged)
+  !allocate functions:
+  allocate(fg(L))
+  allocate(sigma(L))
+  allocate(fg0(L))
+  allocate(fg0_prev(L))
+
+  !build freq. array
+  allocate(wreal(L))
+  wreal = linspace(-1d0*wmax,wmax,L)
+
+  !get or read first sigma 
+  inquire(file="Sigma.restart",exist=check)
+  sigma=zero
+  if(check)then
+     call read_array("Sigma.restart",sigma)
+  endif
+
+  !dmft loop:
+  iloop=0 ; converged=.false.
+  do while(.not.converged.AND.iloop<nloop)
      iloop=iloop+1
-     write(*,"(A,i5)",advance="no")"DMFT-loop",iloop
+     write(*,"(A,i5,2x)",advance="no")"DMFT-loop",iloop
+     !
+     !SELF-CONSISTENCY:
      do i=1,L
-        zeta  = cmplx(wr(i),eps) - sigma(i)
-        fg(i) = gfbether(wr(i),zeta,wband)
+        zeta = dcmplx(wreal(i),eps) - sigma(i)
+        fg(i) = gfbether(wreal(i),zeta,D)
      enddo
+     !
+     fg0_prev=fg0
      fg0 = one/(one/fg + sigma)
-     sold = sigma
-     sigma= ipt_solve_real(fg0,wr)
-     sigt = f_fft_rw2rt(sigma)*dw/pi2
-     sigw = f_fft_rt2rw(sigt)*dt
-     call splot("Sigma_t.ipt",time,sigt)
-     call splot("Sigma_w.ipt",wr,sigw)
-     sigma = wmix*sigma + (1.d0-wmix)*sold
-     converged=check_convergence(sigma,dmft_error,nsuccess,nloop)
+     ! if(iloop>1)fg0 = wmix*fg0 + (1.d0-wmix)*fg0_prev
+     call broyden_mix(fg0_prev,fg0,wmix,5,iloop)
+     !
+     !IMPURITY SOLVER
+     sigma = ipt_solve_real(fg0,wreal)
+     !sigma = ph_symmetry(sigma)
+     !
+     converged=check_convergence(fg0,dmft_error,nsuccess,nloop)
+     !
   enddo
-  call splot("G_realw.ipt",wr,-dimag(fg)/pi,dreal(fg))
-  call splot("G0_realw.ipt",wr,fg0)
-  call splot("Sigma_realw.ipt",wr,sigma)
 
-end program hmipt
 
+  call splot("Gloc_wreal.ipt",wreal,fg)
+  call splot("G0_wreal.ipt",wreal,fg0)
+  call splot("Sigma_wreal.ipt",wreal,sigma)
+  call save_array("Sigma.restart",sigma)
+
+
+contains
+
+  function ph_symmetry(func) result(sfunc)
+    complex(8),dimension(:)          :: func
+    complex(8),dimension(size(func)) :: sfunc
+    complex(8),dimension(size(func)) :: ifunc
+    !Re(F(-w)) = -Re(F(w))
+    !Im(F(w))  = Im(F(w))
+    L = size(func)
+    ifunc =  func(L:1:-1)
+    sfunc = (dreal(func) - dreal(ifunc))/2d0 + xi*(dimag(func) + dimag(ifunc))/2d0
+  end function ph_symmetry
+end program hmipt_real

@@ -6,7 +6,7 @@ program hmipt_matsubara
   implicit none
   logical                :: converged,check
   real(8)                :: wmix,D
-  integer                :: i,iloop,L
+  integer                :: i,iloop,L,unit
   complex(8)             :: zeta
   complex(8),allocatable :: fg(:),fg0(:),sigma(:),GFold(:),delta(:)
   real(8),allocatable    :: wm(:),gtau(:)
@@ -55,24 +55,24 @@ program hmipt_matsubara
      z    = ipt_measure_zeta_matsubara(sigma,fg0)
      docc = ipt_measure_docc_matsubara(sigma,fg0)
      write(*,"(3F15.9,1x)",advance="no")n,docc,z
-     call splot("observables_all.ipt",n,docc,z)
+     open(free_unit(unit),file="observables_all.ipt")
+     write(unit,*)n,docc,z
+     close(unit)
      converged=check_convergence(fg0,dmft_error,nsuccess,nloop)
   enddo
 
   allocate(delta(L))
-  !delta = iw + mu - hloc - one/fg0
   delta = xi*wm+xmu-one/fg0
   call splot("G_iw.ipt",wm,fg)
   call splot("G0_iw.ipt",wm,fg0)
   call splot("Delta_iw.ipt",wm,delta)
   call splot("Sigma_iw.ipt",wm,sigma)
 
-  allocate(gtau(0:512))
-  call fft_gf_iw2tau(fg(:),gtau(0:),beta)
-  call splot("G_tau.ipt",linspace(0d0,beta,513), gtau(0:))
 
   energy = ipt_measure_energy_matsubara(Sigma,fg0,100,D)
-  call splot("observables_last.ipt",n,z,docc,energy(1),energy(2),energy(3))
+  open(free_unit(unit),file="observables_last.ipt")
+  write(unit,"(6F21.12)")n,z,docc,energy(1),energy(2),energy(3)
+  close(unit)
 
 contains
 

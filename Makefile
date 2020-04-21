@@ -1,5 +1,5 @@
 ##$ COMPILER: suppprted compilers are ifort, gnu >v4.7 or use mpif90
-FC=gfortran
+FC=mpif90
 
 ##$ PLATFORM: supported platform are intel, gnu 
 PLAT=gnu
@@ -12,7 +12,6 @@ DIREXE=$(HOME)/.bin
 
 ##$ CHOOSE THE DRIVER CODE:
 EXE=ipt_hm_matsubara
-
 
 ##$ SET INCLUDE AND LINK OPTIONS USING pkg-config
 INCARGS=$(shell pkg-config --cflags dmft_tools scifor)
@@ -64,6 +63,17 @@ compile: version $(OBJS)
 	@echo ""
 	@echo ""
 	@echo "created" $(DIREXE)/$(EXE)$(BRANCH)
+
+debug: version $(OBJS)
+debug: FFLAG=$(DFLAG)
+debug: 
+	@echo " ..................... compile ........................... "
+	$(FC) $(FFLAG) $(INCARGS) $(OBJS) $(DIR)/$(EXE).f90 -o $(DIREXE)/$(EXE)$(BRANCH) $(LIBARGS)
+	@echo " ...................... done .............................. "
+	@echo ""
+	@echo ""
+	@echo "created" $(DIREXE)/$(EXE)$(BRANCH)
+
 
 .f90.o:	
 	$(FC) $(FFLAG) $(INCARGS)  -c $< 

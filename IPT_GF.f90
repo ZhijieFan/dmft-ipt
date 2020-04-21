@@ -9,12 +9,12 @@ module IPT_GF
   implicit none
   private 
 
-  type,public                        ::  keldysh_component
+  type,public ::  keldysh_component
      complex(8),dimension(:),pointer :: w
      complex(8),dimension(:),pointer :: t
   end type keldysh_component
 
-  type,public                        ::  keldysh_gf
+  type,public ::  keldysh_gf
      type(keldysh_component)         :: less
      type(keldysh_component)         :: gtr
      type(keldysh_component)         :: ret
@@ -206,8 +206,8 @@ contains
   function fft_rt2rw(func_in) result(func_out)
     complex(8),dimension(:)               :: func_in
     complex(8),dimension(size(func_in)-1) :: func_out
-    complex(8),dimension(size(func_in)-1) :: ftmp
-    ftmp = func_in
+    complex(8),dimension(size(func_in)-1)  :: ftmp
+    ftmp = func_in(:size(func_in)-1)
     call ifft(ftmp)
     call fftex(ftmp)
     func_out = ifftshift(ftmp)
@@ -256,7 +256,7 @@ contains
           if(i>n)tmpGw(2*i)= tail
        enddo
        call fft(tmpGw)
-       tmpGt(-L:L-1) = -dreal(tmpGw)*2*size(tmpGw)/beta
+       tmpGt(-L:L-1) = -dreal(tmpGw)*2/beta*size(tmpGw)
        do i=0,L-1
           tau=real(i,8)*dtau
           if(mues > 0.d0)then

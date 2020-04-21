@@ -106,8 +106,10 @@ contains
        do iy=1,MM
           iz= iy_m_ix(iy,ix)
           if(iz>0)then
-             sum1=sum1+A0p(MM-iz+1)*P1(iy)*mesh
-             sum2=sum2+A0m(MM-iz+1)*P2(iy)*mesh
+             ! sum1=sum1+A0p(MM-iz+1)*P1(iy)*mesh
+             ! sum2=sum2+A0m(MM-iz+1)*P2(iy)*mesh
+             sum1=sum1+A0p(iy)*P1(iz)*mesh
+             sum2=sum2+A0m(iy)*P2(iz)*mesh
           end if
        enddo
        imS(ix)=-Uloc(1)*Uloc(1)*(sum1+sum2)*pi
@@ -133,8 +135,8 @@ contains
        do iy=1,MM
           iz= iy_m_ix(iy,ix)
           if(iz>0)then
-             P1(ix)=P1(ix) + A0p(iy)*A0m(iz)*mesh
-             P2(ix)=P2(ix) + A0m(iy)*A0p(iz)*mesh
+             P1(ix)=P1(ix) + A0m(iy)*A0p(iz)*mesh
+             P2(ix)=P2(ix) + A0p(iy)*A0m(iz)*mesh
           endif
        enddo
     enddo

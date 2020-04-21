@@ -39,7 +39,6 @@ contains
     call parse_input_variable(xmu,"XMU",inputFILE,default=0.d0,comment="chemical potential w/ respect to HF shift")
     call parse_input_variable(Norb,"Norb",inputFILE,default=1,comment="number of orbitals")
     call parse_input_variable(Nspin,"Nspin",inputFILE,default=1,comment="number of spin channels")
-    ! call parse_input_variable(Lmats,"LMATS",inputFILE,default=2048,comment="number of frequencies")
     call parse_input_variable(nloop,"NLOOP",inputFILE,default=100,comment="maximum number of DMFT iterations")
     call parse_input_variable(eps,"EPS",inputFILE,default=0.01d0,comment="real-axis broadening")
     call parse_input_variable(wmax,"WMAX",inputFILE,default=5.d0,comment="max frequency on the real-axis")

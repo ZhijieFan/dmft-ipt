@@ -10,6 +10,8 @@ module IPT_MATSUBARA
   USE SF_ARRAYS, only:arange
   USE SF_SPECIAL, only: bethe_lattice
   USE SF_IOTOOLS, only: free_unit
+
+  USE DMFT_TOOLS
   implicit none
   private
 
@@ -77,6 +79,11 @@ contains
     Lf=size(fg0_iw)
     n = 0.5d0
     call fft_iw2tau(fg0_iw,fg0_tau(0:),beta)
+    open(unit,file="G0_tau.ipt")
+    do i=0,Lf
+       write(unit,*)i*beta/Lf,fg0_tau(i)
+    enddo
+    close(unit)
     forall(i=0:Lf)sigma_tau(i)=Uloc(1)*Uloc(1)*fg0_tau(i)*fg0_tau(Lf-i)*fg0_tau(i)
     call fft_tau2iw(sigma_tau(0:),sigma_iw,beta)
     unit=free_unit()
@@ -153,6 +160,7 @@ contains
     do i=0,LM
        write(11,*)i*beta/LM,sigmat(i)
        write(12,*)i*beta/LM,selft(i)
+       write(13,*)i*beta/LM,calFt(i)
     enddo
     close(11);close(12)
   end function solve_ipt_sc_matsubara

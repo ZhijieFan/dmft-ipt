@@ -52,19 +52,19 @@ contains
        fg0%less%w(i) = pi2*xi*fermi(wr_(i),beta)*A
        fg0%gtr%w(i)  = pi2*xi*(fermi(wr_(i),beta)-1.d0)*A
     enddo
-    ! call splot("G0ret_w.1",wr_,fg0%ret%w)
-    ! call splot("G0less_w.1",wr_,fg0%less%w)
-    ! call splot("G0gtr_w.1",wr_,fg0%gtr%w)
+    call splot("G0ret_w.1",wr_,fg0%ret%w)
+    call splot("G0less_w.1",wr_,fg0%less%w)
+    call splot("G0gtr_w.1",wr_,fg0%gtr%w)
     ! !
-    ! fg0%ret%t  =  fft_rw2rt(fg0%ret%w)*dw_/pi2
+    fg0%ret%t  =  fft_rw2rt(fg0%ret%w)*dw_/pi2
     fg0%less%t =  fft_rw2rt(fg0%less%w)*dw_/pi2
     fg0%gtr%t  =  fft_rw2rt(fg0%gtr%w)*dw_/pi2
-    ! call splot("G0ret_t.1",t_,fg0%ret%t)
-    ! call splot("G0less_t.1",t_,fg0%less%t)
-    ! call splot("G0gtr_t.1",t_,fg0%gtr%t)
+    call splot("G0ret_t.1",t_,fg0%ret%t)
+    call splot("G0less_t.1",t_,fg0%less%t)
+    call splot("G0gtr_t.1",t_,fg0%gtr%t)
     ! !
-    ! fg0%ret%t(:) =heaviside(t_(:))*(fg0%gtr%t(:)-fg0%less%t(:))
-    ! call splot("G0ret_t.2",t_,fg0%ret%t)
+    fg0%ret%t(:) =heaviside(t_(:))*(fg0%gtr%t(:)-fg0%less%t(:))
+    call splot("G0ret_t.2",t_,fg0%ret%t)
     ! !
     do i=0,M
        sigma%less%t(i)=Uloc(1)*Uloc(1)*fg0%less%t(i)*fg0%gtr%t(M-i)*fg0%less%t(i)
