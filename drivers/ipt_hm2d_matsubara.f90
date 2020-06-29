@@ -84,6 +84,8 @@ program hmipt_matsubara
   enddo
 
 
+  call save_array("g0.restart",Weiss)
+
   energy = ipt_measure_energy_matsubara(Smats,Gmats,epsi,dos2d)
   open(free_unit(unit),file="observables_last.ipt")
   write(unit,*)n,z,docc,energy(1),energy(2),energy(3)

@@ -4,14 +4,15 @@ program hmipt_matsubara
   USE DMFT_TOOLS
 
   implicit none
-  logical                                 :: converged,check
-  real(8)                                 :: wmix,ts
-  integer                                 :: i,ik,iloop,L,Lk,Le,unit,Loc
-  complex(8)                              :: zeta
-  complex(8),allocatable                  :: fg(:),fg0(:),sigma(:),fg0_prev(:)
-  real(8),allocatable                     :: wreal(:),edos(:),Ndos(:)
-  real(8)                                 :: wmin,fmesh,wband,de
-  character(len=24)                       :: finput
+  logical                :: converged,check
+  real(8)                :: wmix,ts
+  integer                :: i,ik,iloop,L,Lk,Le,unit,Loc
+  complex(8)             :: zeta
+  complex(8),allocatable :: fg(:),fg0(:),sigma(:),fg0_prev(:)
+  real(8),allocatable    :: wreal(:),edos(:),Ndos(:)
+  real(8)                :: wmin,fmesh,wband,de,x
+  character(len=24)      :: finput
+  type(finter_type)      :: fSigma
   !
 
 
@@ -21,6 +22,7 @@ program hmipt_matsubara
   call parse_input_variable(Le,"Le",finput,default=1000)
   call parse_input_variable(wmix,"WMIX",finput,default=0.5d0)
   call read_input(finput)
+  call save_input(finput)
 
   !Add DMFT CTRL Variables:
   call add_ctrl_var(1,"norb")
@@ -36,23 +38,25 @@ program hmipt_matsubara
   !BUILD THE LATTICE STRUCTURE (use tight_binding):
   allocate(Edos(Le))
   allocate(Ndos(Le))
-  wband = 4d0*ts + 0.5d0
+  wband = 4d0*ts
   Edos = linspace(-wband,wband,Le,mesh=de)
   do ik=1,Le
      Ndos(ik) = dens_2dsquare(edos(ik),ts)
   enddo
-  Ndos = Ndos/trapz(Ndos,de)
   call splot("DOS2d.ipt",Edos,Ndos)
 
-  !build freq. array
-  allocate(wreal(L))
-  wreal = linspace(wmin,wmax,L,mesh=fmesh)
 
+  allocate(wreal(L))
   !allocate functions:
   allocate(fg(L))
   allocate(sigma(L))
   allocate(fg0(L))
   allocate(fg0_prev(L))
+
+
+  !build freq. array
+  wreal = linspace(wmin,wmax,L,mesh=fmesh)
+
 
 
   !get or read first sigma
@@ -91,6 +95,7 @@ program hmipt_matsubara
   call splot("Sigma_wreal.ipt",wreal,sigma)
   call save_array("Sigma.restart",sigma)
 
+  call init_finter(fSigma,wreal,Sigma,5)
   call get_optical_conductivity()
 
 
@@ -107,56 +112,54 @@ contains
     Hk = -one*2d0*ts*(cos(kx)+cos(ky))
   end function hk_model
 
-  function vk_model(kpoint) result(vk)
-    real(8),dimension(:) :: kpoint
-    real(8)              :: kx,ky
-    real(8)              :: vk(2)
-    kx=kpoint(1)
-    ky=kpoint(2)
-    vk(1) = 2d0*ts*(sin(kx))
-    vk(2) = 2d0*ts*(sin(ky))
-  end function vk_model
-
+  function finter_sigma(x) result(sigma)
+    real(8)    :: x
+    complex(8) :: sigma
+    sigma = cinter(FSigma,x)
+    if(uloc(1)==0d0)sigma=zero
+  end function finter_sigma
 
   subroutine get_optical_conductivity()
-    integer                       :: Nw
-    real(8),dimension(Le)         :: Phi_xx
-    !
-    real(8),dimension(-L/2+1:L/2) :: ReOc,Omega,ImOc
-    complex(8),dimension(L)       :: Oc
-    real(8)                       :: Fw,Fw_p_v,DeltaF
-    real(8)                       :: OCtmp
-    real(8)                       :: sumAe
-    complex(8)                    :: Zw,Zw_p_v
-    real(8)                       :: om,nu,om_p_nu
-    real(8)                       :: Ak,Aw,Aw_p_v
-    integer                       :: i,iw,iv,ie
-    !
-    Nw=L/2
-    Omega(-Nw+1:Nw:1)=wreal
+    real(8),dimension(Le)   :: Phi_xx
+    real(8),dimension(L/2)    :: ReOc,ImOc!,Omega
+    complex(8),dimension(L/2) :: Oc,Edie,ncgs
+    real(8),dimension(L/2)    :: Ref
+    real(8),dimension(L/2)    :: Omega
+    real(8)                 :: Fw,Fw_p_v,DeltaF
+    real(8)                 :: OCtmp
+    real(8)                 :: sumAe
+    complex(8)              :: Zw,Zw_p_v
+    real(8)                 :: om,nu,om_p_nu
+    real(8)                 :: Ak,Aw,Aw_p_v
+    integer                 :: i,iw,iv,ie
+
     !
     Phi_xx= 0d0
     do ie=1,Le
-       Phi_xx(ie) = -1d0/2d0*trapz( Edos(:ie)*Ndos(:ie), de)       
+       Phi_xx(ie) = -1d0/2d0*trapz( Edos(:ie)*Ndos(:ie), de)
     enddo
+    !
+    Omega = wreal(L/2+1:L)
     !
     call start_timer
     ReOc=0d0
-    do iv=1,Nw
+    do iv=1,L/2
        nu = Omega(iv)
        !
-       do iw=1,L-iv
+       do iw=1,L
           om      = wreal(iw)
           om_p_nu = om+nu
+          if(om_p_nu>wmax)cycle
           !
           Fw     = fermi(om,beta)
           Fw_p_v = fermi(om_p_nu,beta)
           DeltaF = (Fw - Fw_p_v)/nu
-          if(abs(nu)<1d-2)DeltaF=-dfermi(om,beta)
-          if(abs(DeltaF)<1d-12)cycle
+          if(abs(nu) < 1d0/beta )DeltaF=-dfermi(om,beta)
           !
-          zw      = dcmplx(om,1d-4)-Sigma(iw)
-          zw_p_v  = dcmplx(om_p_nu,1d-4)-Sigma(iw+iv)
+          if(abs(DeltaF)<1d-9)cycle
+          !
+          zw      = dcmplx(om,eps)-finter_sigma(om)
+          zw_p_v  = dcmplx(om_p_nu,eps)-finter_sigma(om_p_nu)
           !
           sumAe=0d0
           do ie=1,Le
@@ -167,16 +170,32 @@ contains
           !
           ReOC(iv) = ReOC(iv) + DeltaF*sumAe*fmesh*pi2
        enddo
-       call eta(iv,Nw)
+       call progress(iv,size(Omega))
     enddo
     call stop_timer
-    ReOc(-Nw+1:0) = ReOc(Nw:1:-1)
-    ImOc = kronig(reOc,omega,size(reOc))
+
+    ImOc = -one/pi*kronig(reOc,Omega,size(reOc))
     call splot("reOC_realw.ipt",Omega,ReOC)
     call splot("imOC_realw.ipt",Omega,ImOC)
 
     Oc = ReOc + xi*ImOc
-    call splot("Oc_realw.ipt",wreal,Oc)
+    call splot("Oc_realw.ipt",Omega,Oc)
+
+
+    Edie = 1d0 + xi*4*pi*Oc/Omega
+    call splot("Ed_realw.ipt",Omega,Edie)
+    call splot("invEd_realw.ipt",Omega,one/Edie)
+    call splot("Ed_mod_realw.ipt",Omega,abs(Edie))
+    !
+    ncgs= zsqrt(Edie)
+    Ref = abs( (one-ncgs)/(ncgs+one) )**2
+    call splot("Ref_realw.ipt",Omega,Ref,append=.true.)
+    !
+    call splot("ReOc_over_Edie2_realw.ipt",Omega,-Omega*dimag(one/Edie))
+
+
+    
+
   end subroutine get_optical_conductivity
 
 

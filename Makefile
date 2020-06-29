@@ -11,7 +11,7 @@ DIR =drivers
 DIREXE=$(HOME)/.bin
 
 ##$ CHOOSE THE DRIVER CODE:
-EXE=ipt_hm_matsubara
+EXE=ipt_hm2d_real
 
 ##$ SET INCLUDE AND LINK OPTIONS USING pkg-config
 INCARGS=$(shell pkg-config --cflags dmft_tools scifor)
